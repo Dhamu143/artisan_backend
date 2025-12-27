@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Socket Chat Test</title>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        background-color: #f4f4f9;
+      }
+      h2 {
+        color: #333;
+      }
+      .row {
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #log {
+        border: 1px solid #ddd;
+        background: #fff;
+        padding: 15px;
+        height: 350px;
+        overflow-y: auto;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        font-family: monospace;
+        font-size: 13px;
+      }
+      .log-entry {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #eee;
+        word-wrap: break-word;
+      }
+      .log-img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        vertical-align: middle;
+        margin-right: 5px;
+        border: 1px solid #ccc;
+      }
+      input {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 250px;
+      }
+      button {
+        padding: 8px 15px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      button.disconnect {
+        background-color: #dc3545;
+      }
+      button.disconnect:hover {
+        background-color: #a71d2a;
+      }
+      #status {
+        font-weight: bold;
+        color: #dc3545;
+      }
+      .status-online {
+        color: #28a745 !important;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>🧪 Chat & Notification Test UI</h2>
+
+    <div class="row">
+      <label><b>You:</b></label>
+      <input id="userId" placeholder="Enter Your MongoDB _id" />
+      <button onclick="connectUser()">Connect</button>
+      <button class="disconnect" onclick="disconnectUser()">Disconnect</button>
+      <span id="status">Not connected</span>
+    </div>
+
+    <div class="row">
+      <label><b>Chat With:</b></label>
+      <input id="chatWith" placeholder="Receiver MongoDB _id" />
+      <button onclick="fetchPresence()">Check Online Status</button>
+    </div>
+
+    <hr />
+
+    <div class="row">
+      <input id="msg" placeholder="Type message..." style="width: 50%" />
+      <button onclick="sendMessage()">Send Message</button>
+      <button onclick="markSeen()">Mark Seen</button>
+    </div>
+
+    <div class="row">
+      <button onclick="typingStart()">Typing...</button>
+      <button onclick="typingStop()">Stop Typing</button>
+    </div>
+
+    <h3>Events Log</h3>
+    <div id="log"></div>
+
+    <script>
+      let socket = null;
+      let lastMessageId = null;
+
+      // ⚠️ CHANGE THIS IF YOUR SERVER PORT IS DIFFERENT
+      const API_BASE = "http://localhost:5000";
+
+      // Helper to add logs to the box
+      function log(htmlContent) {
+        const el = document.getElementById("log");
+        const time = new Date().toLocaleTimeString();
+        el.innerHTML += `<div class="log-entry">
+            <span style="color:#888">[${time}]</span> ${htmlContent}
+        </div>`;
+        el.scrollTop = el.scrollHeight;
+      }
+
+      function connectUser() {
+        const userId = document.getElementById("userId").value.trim();
+
+        if (!userId || userId.length < 24) {
+          return alert("❌ Please enter a valid 24-char MongoDB _id");
+        }
+
+        // Connect to Socket
+        socket = io(API_BASE, { transports: ["websocket"] });
+
+        socket.on("connect", () => {
+          const statusEl = document.getElementById("status");
+          statusEl.innerText = "Connected";
+          statusEl.classList.add("status-online");
+
+          log("🟢 <b>CONNECTED</b> to Server");
+
+          // Emit User Online Event
+          socket.emit("user:online", userId);
+          log(`🚀 Emitted <b>user:online</b> for ID: ${userId}`);
+        });
+
+        // 1. PRESENCE UPDATE
+        socket.on("presence:update", (d) =>
+          log(
+            `👤 <b>PRESENCE:</b> User ${d.userId} is now <b style="color:${
+              d.status === "online" ? "green" : "red"
+            }">${d.status}</b>`
+          )
+        );
+
+        // 2. TYPING EVENTS
+        socket.on("typing:start", (d) =>
+          log(`✍ <b>${d.from}</b> is typing...`)
+        );
+        socket.on("typing:stop", (d) =>
+          log(`🛑 <b>${d.from}</b> stopped typing.`)
+        );
+
+        // 3. RECEIVE MESSAGE (Updated for New Payload)
+        socket.on("message:receive", (msg) => {
+          lastMessageId = msg._id;
+
+          // Display Image if available
+          let imgTag = "";
+          if (msg.senderImage) {
+            imgTag = `<img src="${msg.senderImage}" class="log-img" />`;
+          }
+
+          log(`
+            <div style="background:#eef; padding:5px; border-radius:4px;">
+                📩 <b>RECEIVED MESSAGE:</b><br/>
+                ${imgTag} <b>${msg.senderName || "Unknown"}</b> (${
+            msg.senderSubCategory || "No Cat"
+          }): "${msg.text}"<br/>
+                <small>ID: ${msg._id}</small>
+            </div>
+          `);
+        });
+
+        // 4. MESSAGE STATUS UPDATE (Delivered/Seen)
+        socket.on("message:status", (st) => {
+          log(
+            `📌 <b>STATUS UPDATE:</b> Msg ${st.id} is now <b>${st.status}</b>`
+          );
+        });
+
+        socket.on("disconnect", () => {
+          const statusEl = document.getElementById("status");
+          statusEl.innerText = "Disconnected";
+          statusEl.classList.remove("status-online");
+          log("🔴 <b>DISCONNECTED</b>");
+        });
+      }
+
+      function disconnectUser() {
+        if (socket) {
+          socket.disconnect();
+          log("🔻 Manually disconnected");
+        }
+      }
+
+      function sendMessage() {
+        const from = document.getElementById("userId").value.trim();
+        const to = document.getElementById("chatWith").value.trim();
+        const text = document.getElementById("msg").value.trim();
+
+        if (!from || !to || !text)
+          return alert("⚠️ Please fill From, To, and Message fields");
+
+        // Emit Message
+        socket.emit("message:send", { from, to, text }, (ack) => {
+          lastMessageId = ack._id;
+
+          // Log the Full Acknowledgement Data
+          console.log("Ack Data:", ack);
+
+          let imgTag = "";
+          if (ack.senderImage) {
+            imgTag = `<img src="${ack.senderImage}" class="log-img" />`;
+          }
+
+          log(`
+            <div style="background:#efe; padding:5px; border-radius:4px;">
+                📤 <b>SENT SUCCESS (Ack):</b><br/>
+                ${imgTag} <b>${ack.senderName}</b>: "${ack.text}"<br/>
+                <small>Status: ${ack.status}</small>
+            </div>
+          `);
+        });
+      }
+
+      function typingStart() {
+        const from = document.getElementById("userId").value.trim();
+        const to = document.getElementById("chatWith").value.trim();
+        if (socket) socket.emit("typing:start", { from, to });
+      }
+
+      function typingStop() {
+        const from = document.getElementById("userId").value.trim();
+        const to = document.getElementById("chatWith").value.trim();
+        if (socket) socket.emit("typing:stop", { from, to });
+      }
+
+      function markSeen() {
+        if (!lastMessageId)
+          return log(
+            "⚠️ No message ID to mark seen (receive or send one first)"
+          );
+
+        const chatWith = document.getElementById("chatWith").value.trim();
+        socket.emit("message:seen", { messageId: lastMessageId, chatWith });
+        log(`👁 <b>MARKED SEEN</b> for Msg: ${lastMessageId}`);
+      }
+
+      // Check API Presence
+      async function fetchPresence() {
+        const id = document.getElementById("chatWith").value.trim();
+        if (!id) return alert("⚠️ Enter receiver _id");
+
+        try {
+          // Note: Verify your route path. Assuming standard: /api/chat/presence/:id
+          const res = await fetch(`${API_BASE}/api/chat/presence/${id}`);
+          const data = await res.json();
+          log(
+            `🟡 <b>API CHECK:</b> User is <b>${
+              data.isOnline ? "ONLINE" : "OFFLINE"
+            }</b> (Last Seen: ${data.lastSeen || "Now"})`
+          );
+        } catch (e) {
+          log(`❌ <b>API ERROR:</b> ${e.message}`);
+        }
+      }
+    </script>
+  </body>
+</html>
