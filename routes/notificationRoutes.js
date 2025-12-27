@@ -3,7 +3,7 @@ const {
   sendNotificationToUser,
   sendBulkNotifications,
   sendToAllUsers
-} = require("../controllers/notificationController");
+} = require("../controllers/notificationcontroller");
 
 const router = express.Router();
 
