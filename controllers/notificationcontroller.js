@@ -1,17 +1,12 @@
 const User = require("../models/userModel");
 const admin = require("../firebase");
 
-/**
- * 🆕 INTERNAL HELPER: Send notification directly (no req/res needed)
- * This is used by socket.js when a user is offline.
- */
 exports.sendPushNotification = async (token, title, body, data = {}) => {
   try {
     if (!token) return;
 
-    // Ensure all data values are strings (FCM requirement)
     const safeData = Object.keys(data).reduce((acc, key) => {
-      acc[key] = String(data[key] || ""); // Convert null/undefined to empty string
+      acc[key] = String(data[key] || "");
       return acc;
     }, {});
 
