@@ -1,26 +1,6 @@
 const User = require("../models/userModel");
 const admin = require("../firebase");
 
-// exports.sendPushNotification = async (token, title, body, data = {}) => {
-//   try {
-//     if (!token) return;
-
-//     const safeData = Object.keys(data).reduce((acc, key) => {
-//       acc[key] = String(data[key] || "");
-//       return acc;
-//     }, {});
-
-//     await admin.messaging().send({
-//       token,
-//       notification: { title, body },
-//       data: safeData,
-//     });
-//     console.log("🔔 Push notification sent successfully");
-//   } catch (err) {
-//     console.error("❌ FCM Notification Error:", err.message);
-//   }
-// };
-
 exports.sendPushNotification = async (
   token,
   title,
@@ -28,17 +8,25 @@ exports.sendPushNotification = async (
   data = {},
   tag = null,
   messageHistory = [],
-  unreadCount = 1
+  unreadCount = 1,
+  findArtisan = false
 ) => {
   try {
     if (!token) return;
 
+    // ✅ LOG THE TOKEN HERE
+    console.log("👉 Sending FCM to Token:", token);
+
+    // 1. Prepare Data Payload
     const combinedData = {
       ...data,
+      // ✅ Critical: Convert Array/Numbers to Strings for FCM
       messageHistory: JSON.stringify(messageHistory),
       unreadCount: String(unreadCount),
+      findArtisan: findArtisan ? "true" : "false",
     };
 
+    // 2. Ensure safety (Double check all values are strings)
     const safeData = Object.keys(combinedData).reduce((acc, key) => {
       acc[key] = String(combinedData[key] || "");
       return acc;
@@ -49,17 +37,19 @@ exports.sendPushNotification = async (
       notification: { title, body },
       data: safeData,
     };
-    console.log("messagePayload", messagePayload);
+
+    // 3. Android Grouping & Badge
     if (tag) {
       messagePayload.android = {
         notification: {
-          tag: tag,
+          tag: tag, // Groups notifications by Chat ID
           clickAction: "CHAT_ACTIVITY",
           notificationCount: unreadCount,
         },
       };
     }
 
+    // 4. iOS Grouping & Badge
     if (tag) {
       messagePayload.apns = {
         payload: {
@@ -72,9 +62,9 @@ exports.sendPushNotification = async (
     }
 
     await admin.messaging().send(messagePayload);
-    console.log("🔔 Grouped Notification Sent | Count:", unreadCount);
+    console.log(`🔔 FCM Sent | Tag: ${tag} | Count: ${unreadCount}`);
   } catch (err) {
-    console.error("❌ FCM Notification Error:", err.message);
+    console.error("❌ FCM Error:", err.message);
   }
 };
 
@@ -93,7 +83,7 @@ exports.sendNotificationToUser = async (req, res) => {
       return res.json({ success: false, message: "User has no FCM token" });
 
     const token = user.pushNotificationToken;
-
+    console.log("pushNotificationToken ", token);
     const response = await admin.messaging().send({
       token,
       notification: { title, body },

@@ -155,8 +155,7 @@ exports.getChatUsersList = async (req, res) => {
           categoryId: "$userDetails.categoryId",
           subCategoryId: "$userDetails.subCategoryId",
           isOnline: "$userDetails.isOnline",
-
-          // Chat Specific Data
+          
           lastMessage: 1,
           lastMessageTime: 1,
           unreadCount: 1,

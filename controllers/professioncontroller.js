@@ -2,20 +2,6 @@ const data = require("../data.json");
 const User = require("../models/userModel");
 const enrichUserWithCategoryData = require("../utils/enrichUserWithCategoryData");
 
-// const haversine = (lat1, lon1, lat2, lon2) => {
-//   const R = 6371;
-//   const toRad = (x) => (x * Math.PI) / 180;
-
-//   const dLat = toRad(lat2 - lat1);
-//   const dLon = toRad(lon2 - lon1);
-
-//   const a =
-//     Math.sin(dLat / 2) ** 2 +
-//     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-
-//   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-// };
-
 function findProfessionById(id) {
   for (const category of data.Categories) {
     if (category.Subcategories) {
@@ -65,28 +51,25 @@ function getFlattenedProfessions(searchTerm = "") {
 
   const flattened = data.Categories.flatMap((category) => {
     const categoryName = category.Category_Name;
-    const categoryId = category.id; // <-- 💡 Capture the ID here!
-
+    const categoryId = category.id;
     const allProfessions = category.Subcategories
       ? category.Subcategories.flatMap((subcategory) =>
           subcategory.Professions.map((prof) => ({
             ...prof,
-            categoryId: categoryId, // <-- 💡 Add categoryId to the object
+            categoryId: categoryId, 
             categoryName: categoryName,
             subcategoryName: subcategory.Subcategory_Name,
           }))
         )
       : (category.Professions || []).map((prof) => ({
           ...prof,
-          categoryId: categoryId, // <-- 💡 Add categoryId to the object
+          categoryId: categoryId, 
           categoryName: categoryName,
           subcategoryName: "N/A",
         }));
 
     return allProfessions;
   });
-  // ... rest of the function (filtering and return)
-  // ...
   return flattened;
 }
 
@@ -487,84 +470,6 @@ exports.deleteProfession = (req, res) => {
   });
 };
 
-// exports.getArtisans = async (req, res) => {
-//   try {
-//     const {
-//       categoryId,
-//       subCategoryId,
-//       city,
-//       businessName,
-//       isAvailable,
-//       page = 1,
-//       limit = 10,
-//     } = req.query;
-
-//     const skip = (Number(page) - 1) * Number(limit);
-
-//     let query = {
-//       findArtisan: false,
-//     };
-
-//     // ---------- AVAILABILITY ----------
-//     if (isAvailable === "true") query.isAvailable = true;
-//     if (isAvailable === "false") query.isAvailable = false;
-
-//     // ---------- SEARCH ----------
-//     if (city) {
-//       query.city = { $regex: city, $options: "i" };
-//     }
-
-//     if (businessName) {
-//       query.businessName = { $regex: businessName, $options: "i" };
-//     }
-
-//     // ---------- CATEGORY FILTER ----------
-//     if (categoryId) {
-//       query.categoryId = { $in: categoryId.split(",") };
-//     }
-
-//     // ---------- SUBCATEGORY FILTER ----------
-//     if (subCategoryId) {
-//       query.subCategoryId = { $in: subCategoryId.split(",") };
-//     }
-//     if (city || businessName) {
-//       const search = city || businessName;
-
-//       query.$or = [
-//         { city: { $regex: search, $options: "i" } },
-//         { businessName: { $regex: search, $options: "i" } },
-//         { name: { $regex: search, $options: "i" } },
-//         { mobile_number: { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     // ---------- COUNT ----------
-//     const total = await User.countDocuments(query);
-
-//     // ---------- FETCH ----------
-//     const users = await User.find(query)
-//       .skip(skip)
-//       .limit(Number(limit))
-//       .sort({ createdAt: -1 });
-
-//     // ✅ ENRICH CATEGORY & SUBCATEGORY
-//     const artisans = users.map((u) => enrichUserWithCategoryData(u));
-
-//     return res.status(200).json({
-//       issuccess: true,
-//       artisans,
-//       total,
-//       totalPages: Math.ceil(total / limit),
-//       page: Number(page),
-//     });
-//   } catch (error) {
-//     console.error("getArtisans error:", error);
-//     return res.status(500).json({ message: "Server Error" });
-//   }
-// };
-
-// GET CATEGORY & SUBCATEGORY COUNT
-
 exports.getArtisans = async (req, res) => {
   try {
     let {
@@ -683,7 +588,7 @@ exports.getArtisanById = async (req, res) => {
 exports.toggleArtisanAuthentication = async (req, res) => {
   try {
     const { id } = req.params;
-    const { isAuthenticat } = req.body; // Expecting boolean
+    const { isAuthenticat } = req.body;
 
     const artisan = await User.findByIdAndUpdate(
       id,
@@ -711,17 +616,15 @@ exports.toggleArtisanAuthentication = async (req, res) => {
     });
   }
 };
-// Add this new function to your controller
 exports.toggleArtisanPremium = async (req, res) => {
   try {
     const { id } = req.params;
     const { isPremium } = req.body;
 
-    // Find and update the user/artisan
     const updatedArtisan = await User.findByIdAndUpdate(
       id,
       { isPremium: isPremium },
-      { new: true } // Return the updated document
+      { new: true } 
     ).select("-password -otp -__v");
 
     if (!updatedArtisan) {
@@ -731,7 +634,7 @@ exports.toggleArtisanPremium = async (req, res) => {
     res.json({
       success: true,
       message: `Artisan premium status updated to ${isPremium}`,
-      artisan: updatedArtisan, // Ensure you return the object as 'artisan' to match frontend
+      artisan: updatedArtisan, 
     });
   } catch (err) {
     console.error(err);

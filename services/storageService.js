@@ -1,25 +1,6 @@
 const imagekit = require("../config/imagekit");
 const path = require("path");
 
-// const uploadToImageKit = async (file, folder = "general", isPrivate = false) => {
-//   try {
-//     const cleanFileName = `${Date.now()}-${file.originalname.replace(/\s+/g, "-")}`;
-
-//     const response = await imagekit.upload({
-//       file: file.buffer,
-//       fileName: cleanFileName,
-//       folder: folder,
-//       isPrivateFile: isPrivate,
-//       useUniqueFileName: true,
-//          tags: [folder, file.mimetype.split("/")[1]],
-//     });
-
-//     return response;
-//   } catch (error) {
-//     console.error("ImageKit Upload Error:", error);
-//     throw new Error("File upload failed. Please try again.");
-//   }
-// };
 const uploadToImageKit = async (
   file,
   folder = "general",

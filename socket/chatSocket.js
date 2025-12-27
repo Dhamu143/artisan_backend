@@ -5,23 +5,21 @@ const {
 const { setOnline, setOffline } = require("../controllers/chatuserController");
 
 const User = require("../models/userModel");
+const Message = require("../models/Message");
 const {
   sendPushNotification,
 } = require("../controllers/notificationcontroller");
 
 const onlineUsers = new Map();
 
-// Helper for nice logs
 const logEvent = (emoji, title, detail = "") => {
   console.log(`${emoji} [${title}]`.padEnd(25) + `| ${detail}`);
 };
 
 module.exports = (io) => {
   io.on("connection", (socket) => {
-    // 1. Connection Event
     logEvent("🔌", "New Connection", `Socket ID: ${socket.id}`);
 
-    // --- USER ONLINE ---
     socket.on("user:online", async (userId) => {
       if (!userId) return;
 
@@ -38,14 +36,11 @@ module.exports = (io) => {
       });
     });
 
-    // --- TYPING EVENTS ---
     socket.on("typing:start", ({ from, to }) => {
       const receiverSocketId = onlineUsers.get(to);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("typing:start", { from });
-        // Optional: Uncomment if you want to see typing logs
-        // logEvent("✍️ ", "Typing Start", `${from} -> ${to}`);
-      }
+             }
     });
 
     socket.on("typing:stop", ({ from, to }) => {
@@ -147,18 +142,17 @@ module.exports = (io) => {
     //   }
     //   console.log("----------------------------------------\n");
     // });
+    // ▼▼▼ MESSAGE SEND EVENT ▼▼▼
     socket.on("message:send", async (data, ack) => {
       console.log("\n--- 📨 NEW MESSAGE FLOW START ---");
       console.log("1️⃣ Input Data:", data);
 
       try {
         const msg = await createMessage(data);
-
         const senderData = await User.findById(data.from)
           .select("name profileImage subCategoryId")
           .lean();
 
-        // This is the EXACT object the Frontend receives
         const fullMsg = {
           ...msg,
           senderName: senderData?.name || "Unknown",
@@ -168,57 +162,55 @@ module.exports = (io) => {
             : "",
         };
 
-        console.log(
-          "2️⃣ Constructed Payload (fullMsg):",
-          JSON.stringify(fullMsg, null, 2)
-        );
-
-        // Acknowledge Sender
-        if (ack) {
-          console.log("3️⃣ Sending ACK to Sender");
-          ack(fullMsg);
-        }
+        if (ack) ack(fullMsg);
 
         const receiverSocketId = onlineUsers.get(data.to);
 
         if (receiverSocketId) {
-          console.log(`4️⃣ Receiver is ONLINE (Socket ID: ${receiverSocketId})`);
-
-          // --- SCENARIO 1: ONLINE (Socket Delivery) ---
+          // --- ONLINE ---
+          console.log(`4️⃣ Receiver ONLINE (${receiverSocketId})`);
           await updateMessageStatus({
             messageId: msg._id,
             status: "delivered",
           });
-
-          const receivePayload = {
+          io.to(receiverSocketId).emit("message:receive", {
             ...fullMsg,
             status: "delivered",
-          };
-
-          console.log(
-            "🚀 Emitting 'message:receive' to Receiver:",
-            receivePayload
-          );
-          io.to(receiverSocketId).emit("message:receive", receivePayload);
-
-          const statusPayload = {
+          });
+          io.to(socket.id).emit("message:status", {
             id: msg._id,
             status: "delivered",
             to: data.to,
-          };
-
-          console.log("🔄 Emitting 'message:status' to Sender:", statusPayload);
-          io.to(socket.id).emit("message:status", statusPayload);
+          });
         } else {
-          console.log("4️⃣ Receiver is OFFLINE. Checking for Push Token...");
-          // --- SCENARIO 2: OFFLINE (Push Notification) ---
+          // --- OFFLINE ---
+          console.log("4️⃣ Receiver OFFLINE. Preparing Push...");
           const receiverData = await User.findById(data.to).select(
             "pushNotificationToken"
           );
 
           if (receiverData && receiverData.pushNotificationToken) {
-            const title = fullMsg.senderName;
-            const body = data.text;
+            const unreadMessages = await Message.find({
+              chatId: msg.chatId,
+              to: data.to, // Messages sent TO the receiver
+              status: { $ne: "seen" }, // That are NOT read
+            })
+              .sort({ createdAt: -1 })
+              .limit(10)
+              .select("text");
+
+            // Create Array: ["Hello", "How are you?"]
+            let historyArray = unreadMessages.map((m) => m.text).reverse();
+
+            // Fallback: If DB is slow, manually add the new message
+            if (historyArray.length === 0) historyArray = [data.text];
+            else if (!historyArray.includes(data.text))
+              historyArray.push(data.text);
+
+            const unreadCount = historyArray.length;
+
+            // ✅ LOG THE ARRAY TO SEE IT WORKING
+            console.log(`📦 HISTORY ARRAY [${unreadCount}]:`, historyArray);
 
             const payloadData = {
               type: "CHAT_MESSAGE",
@@ -229,24 +221,18 @@ module.exports = (io) => {
               senderImage: fullMsg.senderImage,
             };
 
-            console.log("📲 Sending Push Notification:", {
-              token: receiverData.pushNotificationToken,
-              title,
-              body,
-              tag: msg.chatId,
-            });
-
             await sendPushNotification(
               receiverData.pushNotificationToken,
-              title,
-              body,
+              fullMsg.senderName,
+              data.text,
               payloadData,
-              msg.chatId
+              msg.chatId,
+              historyArray,
+              unreadCount
             );
-
-            logEvent("✅", "Notification Sent", "Grouped by ChatID");
+            logEvent("✅", "Notification Sent", `Count: ${unreadCount}`);
           } else {
-            console.log("❌ No Push Token found for receiver.");
+            console.log("❌ No Push Token found");
           }
         }
       } catch (err) {
