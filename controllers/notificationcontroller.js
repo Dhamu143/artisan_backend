@@ -1,29 +1,83 @@
 const User = require("../models/userModel");
 const admin = require("../firebase");
 
-exports.sendPushNotification = async (token, title, body, data = {}) => {
+// exports.sendPushNotification = async (token, title, body, data = {}) => {
+//   try {
+//     if (!token) return;
+
+//     const safeData = Object.keys(data).reduce((acc, key) => {
+//       acc[key] = String(data[key] || "");
+//       return acc;
+//     }, {});
+
+//     await admin.messaging().send({
+//       token,
+//       notification: { title, body },
+//       data: safeData,
+//     });
+//     console.log("🔔 Push notification sent successfully");
+//   } catch (err) {
+//     console.error("❌ FCM Notification Error:", err.message);
+//   }
+// };
+
+exports.sendPushNotification = async (
+  token,
+  title,
+  body,
+  data = {},
+  tag = null,
+  messageHistory = [],
+  unreadCount = 1
+) => {
   try {
     if (!token) return;
 
-    const safeData = Object.keys(data).reduce((acc, key) => {
-      acc[key] = String(data[key] || "");
+    const combinedData = {
+      ...data,
+      messageHistory: JSON.stringify(messageHistory),
+      unreadCount: String(unreadCount),
+    };
+
+    const safeData = Object.keys(combinedData).reduce((acc, key) => {
+      acc[key] = String(combinedData[key] || "");
       return acc;
     }, {});
 
-    await admin.messaging().send({
+    const messagePayload = {
       token,
       notification: { title, body },
       data: safeData,
-    });
-    console.log("🔔 Push notification sent successfully");
+    };
+    console.log("messagePayload", messagePayload);
+    if (tag) {
+      messagePayload.android = {
+        notification: {
+          tag: tag,
+          clickAction: "CHAT_ACTIVITY",
+          notificationCount: unreadCount,
+        },
+      };
+    }
+
+    if (tag) {
+      messagePayload.apns = {
+        payload: {
+          aps: {
+            "thread-id": tag,
+            badge: unreadCount,
+          },
+        },
+      };
+    }
+
+    await admin.messaging().send(messagePayload);
+    console.log("🔔 Grouped Notification Sent | Count:", unreadCount);
   } catch (err) {
     console.error("❌ FCM Notification Error:", err.message);
   }
 };
 
-/**
- * Send to ONE user (API Controller)
- */
 exports.sendNotificationToUser = async (req, res) => {
   try {
     const { userId, title, body, data } = req.body;
@@ -53,9 +107,6 @@ exports.sendNotificationToUser = async (req, res) => {
   }
 };
 
-/**
- * Send to MULTIPLE users (bulk)
- */
 exports.sendBulkNotifications = async (req, res) => {
   try {
     const { userIds, title, body, data } = req.body;
@@ -89,9 +140,6 @@ exports.sendBulkNotifications = async (req, res) => {
   }
 };
 
-/**
- * Send to ALL users
- */
 exports.sendToAllUsers = async (req, res) => {
   try {
     const { title, body, data } = req.body;

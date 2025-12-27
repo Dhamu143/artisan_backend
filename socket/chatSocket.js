@@ -11,9 +11,15 @@ const {
 
 const onlineUsers = new Map();
 
+// Helper for nice logs
+const logEvent = (emoji, title, detail = "") => {
+  console.log(`${emoji} [${title}]`.padEnd(25) + `| ${detail}`);
+};
+
 module.exports = (io) => {
   io.on("connection", (socket) => {
-    console.log("🔌 Socket connected:", socket.id);
+    // 1. Connection Event
+    logEvent("🔌", "New Connection", `Socket ID: ${socket.id}`);
 
     // --- USER ONLINE ---
     socket.on("user:online", async (userId) => {
@@ -22,8 +28,9 @@ module.exports = (io) => {
       socket.userId = userId;
       onlineUsers.set(userId, socket.id);
 
-      console.log("🟢 USER ONLINE:", userId);
       await setOnline(userId);
+
+      logEvent("🟢", "User Online", `User ID: ${userId}`);
 
       io.emit("presence:update", {
         userId,
@@ -31,38 +38,119 @@ module.exports = (io) => {
       });
     });
 
+    // --- TYPING EVENTS ---
     socket.on("typing:start", ({ from, to }) => {
-      //   console.log(`✍️ TYPING START: ${from} -> ${to}`);
       const receiverSocketId = onlineUsers.get(to);
-      //   if (receiverSocketId) {
-      //     io.to(receiverSocketId).emit("typing:start", { from });
-      //   }
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("typing:start", { from });
-        // console.log(`   --> Sent to socket: ${receiverSocketId}`);
-      } else {
-        // console.log(`   ⚠️ FAILED: Receiver ${to} is NOT in onlineUsers map.`);
-        // console.log("   Current Online Users:", [...onlineUsers.keys()]);
+        // Optional: Uncomment if you want to see typing logs
+        // logEvent("✍️ ", "Typing Start", `${from} -> ${to}`);
       }
     });
 
-    // --- TYPING STOP ---
     socket.on("typing:stop", ({ from, to }) => {
       const receiverSocketId = onlineUsers.get(to);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("typing:stop", { from });
       }
     });
+
     socket.on("presence:check", async (userIdToCheck, cb) => {
       const isOnline = onlineUsers.has(userIdToCheck);
-
       cb({
         userId: userIdToCheck,
         status: isOnline ? "online" : "offline",
       });
     });
+
     // ▼▼▼ UPDATED MESSAGE:SEND EVENT ▼▼▼
+    // socket.on("message:send", async (data, ack) => {
+    //   console.log(`\n--- 📨 NEW MESSAGE FLOW [${socket.userId}] ---`);
+
+    //   try {
+    //     const msg = await createMessage(data);
+
+    //     const senderData = await User.findById(data.from)
+    //       .select("name profileImage subCategoryId")
+    //       .lean();
+
+    //     const fullMsg = {
+    //       ...msg,
+    //       senderName: senderData?.name || "Unknown",
+    //       senderImage: senderData?.profileImage || "",
+    //       senderSubCategory: senderData?.subCategoryId
+    //         ? senderData.subCategoryId.toString()
+    //         : "",
+    //     };
+
+    //     // Acknowledge sender
+    //     ack && ack(fullMsg);
+    //     logEvent("✅", "Message Saved", `ID: ${msg._id}`);
+
+    //     const receiverSocketId = onlineUsers.get(data.to);
+
+    //     if (receiverSocketId) {
+    //       // --- SCENARIO 1: RECEIVER IS ONLINE ---
+    //       await updateMessageStatus({
+    //         messageId: msg._id,
+    //         status: "delivered",
+    //       });
+
+    //       io.to(receiverSocketId).emit("message:receive", {
+    //         ...fullMsg,
+    //         status: "delivered",
+    //       });
+
+    //       io.to(socket.id).emit("message:status", {
+    //         id: msg._id,
+    //         status: "delivered",
+    //         to: data.to,
+    //       });
+
+    //       logEvent("🚀", "Socket Delivered", `To User: ${data.to}`);
+    //     } else {
+    //       // --- SCENARIO 2: RECEIVER IS OFFLINE ---
+    //       logEvent("🌙", "User Offline", `Target: ${data.to}`);
+    //       logEvent("🔔", "Push Notification", "Initiating...");
+
+    //       const receiverData = await User.findById(data.to).select(
+    //         "pushNotificationToken"
+    //       );
+
+    //       if (receiverData && receiverData.pushNotificationToken) {
+    //         const title = fullMsg.senderName;
+    //         const body = data.text;
+
+    //         const payloadData = {
+    //           type: "CHAT_MESSAGE",
+    //           chatId: msg.chatId,
+    //           senderId: data.from,
+    //           messageId: msg._id.toString(),
+    //           senderName: fullMsg.senderName,
+    //           senderImage: fullMsg.senderImage,
+    //           senderSubCategory: fullMsg.senderSubCategory,
+    //         };
+
+    //         await sendPushNotification(
+    //           receiverData.pushNotificationToken,
+    //           title,
+    //           body,
+    //           payloadData
+    //         );
+    //         logEvent("📲", "Notification Sent", "FCM Request Successful");
+    //       } else {
+    //         logEvent("❌", "Notification Failed", "No Token Found for User");
+    //       }
+    //     }
+    //   } catch (err) {
+    //     console.error("❌ [MESSAGE ERROR]:", err.message);
+    //   }
+    //   console.log("----------------------------------------\n");
+    // });
     socket.on("message:send", async (data, ack) => {
+      console.log("\n--- 📨 NEW MESSAGE FLOW START ---");
+      console.log("1️⃣ Input Data:", data);
+
       try {
         const msg = await createMessage(data);
 
@@ -70,6 +158,7 @@ module.exports = (io) => {
           .select("name profileImage subCategoryId")
           .lean();
 
+        // This is the EXACT object the Frontend receives
         const fullMsg = {
           ...msg,
           senderName: senderData?.name || "Unknown",
@@ -79,31 +168,50 @@ module.exports = (io) => {
             : "",
         };
 
-        ack && ack(fullMsg);
+        console.log(
+          "2️⃣ Constructed Payload (fullMsg):",
+          JSON.stringify(fullMsg, null, 2)
+        );
+
+        // Acknowledge Sender
+        if (ack) {
+          console.log("3️⃣ Sending ACK to Sender");
+          ack(fullMsg);
+        }
 
         const receiverSocketId = onlineUsers.get(data.to);
 
         if (receiverSocketId) {
+          console.log(`4️⃣ Receiver is ONLINE (Socket ID: ${receiverSocketId})`);
+
+          // --- SCENARIO 1: ONLINE (Socket Delivery) ---
           await updateMessageStatus({
             messageId: msg._id,
             status: "delivered",
           });
 
-          io.to(receiverSocketId).emit("message:receive", {
+          const receivePayload = {
             ...fullMsg,
             status: "delivered",
-          });
+          };
 
-          io.to(socket.id).emit("message:status", {
+          console.log(
+            "🚀 Emitting 'message:receive' to Receiver:",
+            receivePayload
+          );
+          io.to(receiverSocketId).emit("message:receive", receivePayload);
+
+          const statusPayload = {
             id: msg._id,
             status: "delivered",
             to: data.to,
-          });
-        } else {
-          console.log(
-            `⚠️ User ${data.to} is OFFLINE. Sending Push Notification...`
-          );
+          };
 
+          console.log("🔄 Emitting 'message:status' to Sender:", statusPayload);
+          io.to(socket.id).emit("message:status", statusPayload);
+        } else {
+          console.log("4️⃣ Receiver is OFFLINE. Checking for Push Token...");
+          // --- SCENARIO 2: OFFLINE (Push Notification) ---
           const receiverData = await User.findById(data.to).select(
             "pushNotificationToken"
           );
@@ -117,28 +225,34 @@ module.exports = (io) => {
               chatId: msg.chatId,
               senderId: data.from,
               messageId: msg._id.toString(),
-
               senderName: fullMsg.senderName,
               senderImage: fullMsg.senderImage,
-              senderSubCategory: fullMsg.senderSubCategory,
             };
+
+            console.log("📲 Sending Push Notification:", {
+              token: receiverData.pushNotificationToken,
+              title,
+              body,
+              tag: msg.chatId,
+            });
 
             await sendPushNotification(
               receiverData.pushNotificationToken,
               title,
               body,
-              payloadData
+              payloadData,
+              msg.chatId
             );
+
+            logEvent("✅", "Notification Sent", "Grouped by ChatID");
           } else {
-            console.log(
-              "❌ Notification failed: No Token found for user",
-              data.to
-            );
+            console.log("❌ No Push Token found for receiver.");
           }
         }
       } catch (err) {
-        console.error("❌ MESSAGE SEND ERROR:", err);
+        console.error("❌ [MESSAGE ERROR]:", err.message);
       }
+      console.log("--- 📨 MESSAGE FLOW END ---\n");
     });
     // ▲▲▲ END UPDATED SECTION ▲▲▲
 
@@ -156,20 +270,25 @@ module.exports = (io) => {
             id: messageId,
             status: "seen",
           });
+          logEvent(
+            "👀",
+            "Message Seen",
+            `By: ${socket.userId} -> Sender: ${chatWith}`
+          );
         }
       } catch (err) {
-        console.error("❌ MESSAGE SEEN ERROR:", err);
+        console.error("❌ [SEEN ERROR]:", err);
       }
     });
 
     // --- DISCONNECT ---
     socket.on("disconnect", async () => {
       if (!socket.userId) {
-        console.log("⚡ Socket disconnected (no user)");
+        logEvent("⚡", "Disconnect", "Socket disconnected (No User ID)");
         return;
       }
 
-      console.log("🔴 USER OFFLINE:", socket.userId);
+      logEvent("🔴", "User Offline", `User ID: ${socket.userId}`);
 
       onlineUsers.delete(socket.userId);
       await setOffline(socket.userId);

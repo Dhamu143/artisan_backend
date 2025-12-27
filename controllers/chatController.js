@@ -27,9 +27,19 @@ exports.createMessage = async (data) => {
 };
 
 exports.updateMessageStatus = async ({ messageId, status }) => {
-  return Message.findByIdAndUpdate(
-    messageId,
-    { status },
-    { new: true }
-  ).lean();
+  return Message.findByIdAndUpdate(messageId, { status }, { new: true }).lean();
+};
+
+exports.markMessagesDelivered = async (userId) => {
+  const messages = await Message.find({
+    to: userId,
+    status: "sent",
+  });
+
+  await Message.updateMany(
+    { to: userId, status: "sent" },
+    { status: "delivered" }
+  );
+
+  return messages;
 };

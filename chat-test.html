@@ -1,285 +1,767 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Socket Chat Test</title>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>King Bites Chat | Admin Console</title>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --primary: #00a884;
+        --bg-app: #d1d7db;
+        --bg-chat: #efeae2;
+        --incoming: #ffffff;
+        --outgoing: #d9fdd3;
+      }
+
       body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+        background-color: var(--bg-app);
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .app-container {
+        display: flex;
+        width: 95%;
+        max-width: 1400px;
+        height: 95vh;
+        background: #fff;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        border-radius: 4px;
+      }
+
+      /* SIDEBAR */
+      .sidebar {
+        width: 380px;
+        background: #fff;
+        border-right: 1px solid #e9edef;
+        display: flex;
+        flex-direction: column;
+        z-index: 2;
+      }
+      .sidebar-header {
+        background: #f0f2f5;
+        padding: 15px;
+        border-bottom: 1px solid #e9edef;
+        font-weight: bold;
+        color: #54656f;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 60px;
+        box-sizing: border-box;
+      }
+
+      .config-box {
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .input-group label {
+        font-size: 11px;
+        color: #54656f;
+        font-weight: 600;
+        margin-bottom: 5px;
+        display: block;
+        text-transform: uppercase;
+      }
+      .input-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #dfe3e5;
+        border-radius: 4px;
+        box-sizing: border-box;
+        font-size: 13px;
+        outline: none;
+      }
+      .input-group input:focus {
+        border-color: var(--primary);
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 5px;
+      }
+
+      button {
+        border: none;
+        padding: 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.2s;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 13px;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn-green {
+        background: var(--primary);
+        color: white;
+      }
+      .btn-green:hover:not(:disabled) {
+        background: #008f6f;
+      }
+      .btn-red {
+        background: #ea0038;
+        color: white;
+      }
+      .btn-outline {
+        background: white;
+        border: 1px solid #d1d7db;
+        color: #54656f;
+      }
+      .btn-outline:hover:not(:disabled) {
+        background: #f0f2f5;
+      }
+
+      /* USER LIST SECTION */
+      .user-list-container {
+        flex: 1;
+        overflow-y: auto;
+        background: #fff;
+      }
+      .list-header {
+        padding: 10px 15px;
+        background: #f7f8fa;
+        font-size: 12px;
+        font-weight: bold;
+        color: #54656f;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .user-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 15px;
+        border-bottom: 1px solid #f0f2f5;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+      .user-item:hover {
+        background: #f5f6f6;
+      }
+      .user-item.active {
+        background: #e9edef;
+      }
+
+      .user-item-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #dfe3e5;
+        margin-right: 12px;
+        overflow: hidden;
+      }
+      .user-item-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .user-item-info {
+        flex: 1;
+        overflow: hidden;
+      }
+      .user-item-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #111b21;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .user-item-status {
+        font-size: 12px;
+        color: #667781;
+      }
+      .online-indicator {
+        width: 8px;
+        height: 8px;
+        background: #25d366;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 4px;
+      }
+
+      .logs {
+        height: 150px;
+        background: #0b141a;
+        color: #00ff9d;
+        font-family: "Consolas", monospace;
+        font-size: 11px;
+        padding: 10px;
+        overflow-y: auto;
+        border-top: 4px solid var(--primary);
+      }
+      .log-entry {
+        margin-bottom: 3px;
+        border-bottom: 1px solid #2a3942;
+        padding-bottom: 2px;
+      }
+
+      /* CHAT AREA (Right Side) */
+      .chat-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--bg-chat);
+        background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+        opacity: 0.5;
+        transition: opacity 0.3s;
+        pointer-events: none;
+      }
+      .chat-area.active {
+        opacity: 1;
+        pointer-events: all;
+      }
+
+      .chat-header {
+        height: 60px;
+        background: #f0f2f5;
+        padding: 0 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #e9edef;
+      }
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 20px;
+        overflow: hidden;
+      }
+      .avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .messages-container {
+        flex: 1;
         padding: 20px;
-        background-color: #f4f4f9;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
       }
-      h2 {
-        color: #333;
+
+      .msg-bubble {
+        max-width: 65%;
+        padding: 6px 7px 8px 9px;
+        border-radius: 7.5px;
+        position: relative;
+        font-size: 14.2px;
+        line-height: 19px;
+        color: #111b21;
+        box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+        display: flex;
+        flex-direction: column;
       }
-      .row {
-        margin-bottom: 12px;
+      .msg-bubble.sent {
+        align-self: flex-end;
+        background: var(--outgoing);
+        border-top-right-radius: 0;
+      }
+      .msg-bubble.received {
+        align-self: flex-start;
+        background: var(--incoming);
+        border-top-left-radius: 0;
+      }
+
+      .msg-meta {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 4px;
+        margin-top: -4px;
+        margin-left: 20px;
+        min-width: 50px;
+      }
+      .msg-time {
+        font-size: 11px;
+        color: #667781;
+      }
+      .msg-tick {
+        font-size: 11px;
+        color: #8696a0;
+      }
+      .msg-tick.seen {
+        color: #53bdeb;
+      }
+
+      .footer {
+        padding: 10px 15px;
+        background: #f0f2f5;
         display: flex;
         align-items: center;
         gap: 10px;
       }
-      #log {
-        border: 1px solid #ddd;
-        background: #fff;
-        padding: 15px;
-        height: 350px;
-        overflow-y: auto;
-        border-radius: 5px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        font-family: monospace;
-        font-size: 13px;
-      }
-      .log-entry {
-        margin-bottom: 8px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #eee;
-        word-wrap: break-word;
-      }
-      .log-img {
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        vertical-align: middle;
-        margin-right: 5px;
-        border: 1px solid #ccc;
-      }
-      input {
-        padding: 8px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        width: 250px;
-      }
-      button {
-        padding: 8px 15px;
-        cursor: pointer;
-        background-color: #007bff;
-        color: white;
+      .footer input {
+        flex: 1;
+        padding: 12px 15px;
         border: none;
-        border-radius: 4px;
+        border-radius: 8px;
+        outline: none;
+        font-size: 15px;
       }
-      button:hover {
-        background-color: #0056b3;
+      .btn-send {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        padding: 0;
       }
-      button.disconnect {
-        background-color: #dc3545;
-      }
-      button.disconnect:hover {
-        background-color: #a71d2a;
-      }
-      #status {
-        font-weight: bold;
-        color: #dc3545;
-      }
-      .status-online {
-        color: #28a745 !important;
+
+      .hidden {
+        display: none !important;
       }
     </style>
   </head>
-
   <body>
-    <h2>🧪 Chat & Notification Test UI</h2>
+    <div class="app-container">
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <i class="fas fa-robot"></i> <span>Socket Debugger</span>
+        </div>
 
-    <div class="row">
-      <label><b>You:</b></label>
-      <input id="userId" placeholder="Enter Your MongoDB _id" />
-      <button onclick="connectUser()">Connect</button>
-      <button class="disconnect" onclick="disconnectUser()">Disconnect</button>
-      <span id="status">Not connected</span>
+        <div class="config-box">
+          <div class="input-group">
+            <label>MY ID (Sender)</label>
+            <input id="myId" placeholder="Paste MongoDB _id here..." />
+          </div>
+
+          <button id="btnConnect" class="btn-green" onclick="connectSocket()">
+            <i class="fas fa-plug"></i> Connect
+          </button>
+          <button
+            id="btnDisconnect"
+            class="btn-red hidden"
+            onclick="disconnectSocket()"
+          >
+            <i class="fas fa-power-off"></i> Disconnect
+          </button>
+
+          <div class="input-group" style="margin-top: 10px">
+            <label>TARGET ID (Receiver)</label>
+            <input id="targetId" placeholder="Select from list below..." />
+          </div>
+
+          <div class="btn-group">
+            <button
+              class="btn-outline"
+              onclick="loadHistory()"
+              id="btnHistory"
+              disabled
+            >
+              <i class="fas fa-history"></i> History
+            </button>
+            <button
+              class="btn-outline"
+              onclick="markAllAsRead()"
+              id="btnMarkRead"
+              disabled
+            >
+              <i class="fas fa-check-double"></i> Mark Read
+            </button>
+          </div>
+        </div>
+
+        <div class="list-header">
+          <span>RECENT CHATS</span>
+          <button
+            class="btn-outline"
+            style="width: auto; padding: 4px 8px"
+            onclick="fetchUserList()"
+            id="btnRefreshList"
+            disabled
+          >
+            <i class="fas fa-sync"></i>
+          </button>
+        </div>
+        <div id="userList" class="user-list-container">
+          <div
+            style="
+              padding: 20px;
+              text-align: center;
+              color: #999;
+              font-size: 12px;
+            "
+          >
+            Connect to load users
+          </div>
+        </div>
+
+        <div class="logs" id="logBox">
+          <div class="log-entry" style="color: #aaa">-- System Ready --</div>
+        </div>
+      </div>
+
+      <div class="chat-area" id="chatArea">
+        <div class="chat-header">
+          <div class="user-info">
+            <div class="avatar" id="headerAvatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="user-meta">
+              <h4 id="headerName">Select User</h4>
+              <!-- <span id="headerStatus">Disconnected</span> -->
+            </div>
+          </div>
+        </div>
+
+        <div class="messages-container" id="msgContainer"></div>
+
+        <div class="footer">
+          <input
+            id="msgInput"
+            placeholder="Type a message..."
+            disabled
+            onkeypress="handleEnter(event)"
+          />
+          <button
+            id="sendBtn"
+            class="btn-green btn-send"
+            onclick="sendMessage()"
+            disabled
+          >
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
     </div>
-
-    <div class="row">
-      <label><b>Chat With:</b></label>
-      <input id="chatWith" placeholder="Receiver MongoDB _id" />
-      <button onclick="fetchPresence()">Check Online Status</button>
-    </div>
-
-    <hr />
-
-    <div class="row">
-      <input id="msg" placeholder="Type message..." style="width: 50%" />
-      <button onclick="sendMessage()">Send Message</button>
-      <button onclick="markSeen()">Mark Seen</button>
-    </div>
-
-    <div class="row">
-      <button onclick="typingStart()">Typing...</button>
-      <button onclick="typingStop()">Stop Typing</button>
-    </div>
-
-    <h3>Events Log</h3>
-    <div id="log"></div>
 
     <script>
+      const API_URL = "http://localhost:5000";
       let socket = null;
-      let lastMessageId = null;
+      let currentMessages = [];
 
-      // ⚠️ CHANGE THIS IF YOUR SERVER PORT IS DIFFERENT
-      const API_BASE = "http://localhost:5000";
+      // --- DOM Elements ---
+      const dom = {
+        myId: document.getElementById("myId"),
+        targetId: document.getElementById("targetId"),
+        userList: document.getElementById("userList"),
+        msgContainer: document.getElementById("msgContainer"),
+        msgInput: document.getElementById("msgInput"),
+        sendBtn: document.getElementById("sendBtn"),
+        btnConnect: document.getElementById("btnConnect"),
+        btnDisconnect: document.getElementById("btnDisconnect"),
+        btnHistory: document.getElementById("btnHistory"),
+        btnMarkRead: document.getElementById("btnMarkRead"),
+        btnRefreshList: document.getElementById("btnRefreshList"),
+        logBox: document.getElementById("logBox"),
+        headerName: document.getElementById("headerName"),
+        headerStatus: document.getElementById("headerStatus"),
+        headerAvatar: document.getElementById("headerAvatar"),
+        chatArea: document.getElementById("chatArea"),
+      };
 
-      // Helper to add logs to the box
-      function log(htmlContent) {
-        const el = document.getElementById("log");
-        const time = new Date().toLocaleTimeString();
-        el.innerHTML += `<div class="log-entry">
-            <span style="color:#888">[${time}]</span> ${htmlContent}
-        </div>`;
-        el.scrollTop = el.scrollHeight;
+      function log(txt, type = "info") {
+        const time = new Date().toLocaleTimeString().split(" ")[0];
+        let color = "#00ff9d";
+        if (type === "error") color = "#ff4444";
+        if (type === "sent") color = "#53bdeb";
+        dom.logBox.innerHTML += `<div class="log-entry" style="color:${color}"><span style="color:#666">[${time}]</span> ${txt}</div>`;
+        dom.logBox.scrollTop = dom.logBox.scrollHeight;
       }
 
-      function connectUser() {
-        const userId = document.getElementById("userId").value.trim();
+      // --- 1. CONNECT ---
+      function connectSocket() {
+        const userId = dom.myId.value.trim();
+        if (!userId) return alert("Please enter My ID first!");
 
-        if (!userId || userId.length < 24) {
-          return alert("❌ Please enter a valid 24-char MongoDB _id");
-        }
-
-        // Connect to Socket
-        socket = io(API_BASE, { transports: ["websocket"] });
+        socket = io(API_URL, { transports: ["websocket"] });
 
         socket.on("connect", () => {
-          const statusEl = document.getElementById("status");
-          statusEl.innerText = "Connected";
-          statusEl.classList.add("status-online");
-
-          log("🟢 <b>CONNECTED</b> to Server");
-
-          // Emit User Online Event
+          log("🟢 Connected");
           socket.emit("user:online", userId);
-          log(`🚀 Emitted <b>user:online</b> for ID: ${userId}`);
-        });
+          setConnectedState(true);
 
-        // 1. PRESENCE UPDATE
-        socket.on("presence:update", (d) =>
-          log(
-            `👤 <b>PRESENCE:</b> User ${d.userId} is now <b style="color:${
-              d.status === "online" ? "green" : "red"
-            }">${d.status}</b>`
-          )
-        );
-
-        // 2. TYPING EVENTS
-        socket.on("typing:start", (d) =>
-          log(`✍ <b>${d.from}</b> is typing...`)
-        );
-        socket.on("typing:stop", (d) =>
-          log(`🛑 <b>${d.from}</b> stopped typing.`)
-        );
-
-        // 3. RECEIVE MESSAGE (Updated for New Payload)
-        socket.on("message:receive", (msg) => {
-          lastMessageId = msg._id;
-
-          // Display Image if available
-          let imgTag = "";
-          if (msg.senderImage) {
-            imgTag = `<img src="${msg.senderImage}" class="log-img" />`;
-          }
-
-          log(`
-            <div style="background:#eef; padding:5px; border-radius:4px;">
-                📩 <b>RECEIVED MESSAGE:</b><br/>
-                ${imgTag} <b>${msg.senderName || "Unknown"}</b> (${
-            msg.senderSubCategory || "No Cat"
-          }): "${msg.text}"<br/>
-                <small>ID: ${msg._id}</small>
-            </div>
-          `);
-        });
-
-        // 4. MESSAGE STATUS UPDATE (Delivered/Seen)
-        socket.on("message:status", (st) => {
-          log(
-            `📌 <b>STATUS UPDATE:</b> Msg ${st.id} is now <b>${st.status}</b>`
-          );
+          // Auto-fetch users upon connection
+          fetchUserList();
         });
 
         socket.on("disconnect", () => {
-          const statusEl = document.getElementById("status");
-          statusEl.innerText = "Disconnected";
-          statusEl.classList.remove("status-online");
-          log("🔴 <b>DISCONNECTED</b>");
+          log("🔴 Disconnected", "error");
+          setConnectedState(false);
+        });
+
+        socket.on("message:receive", (data) => {
+          appendMessage(data, "received");
+          currentMessages.push(data);
+
+          // Auto-Seen if chat is open with this user
+          if (dom.targetId.value === data.from) {
+            socket.emit("message:seen", {
+              messageId: data._id,
+              chatWith: data.from,
+            });
+          }
+        });
+
+        socket.on("message:status", (data) => {
+          updateTick(data.id, data.status);
+          const msg = currentMessages.find((m) => m._id === data.id);
+          if (msg) msg.status = data.status;
+        });
+
+        socket.on("presence:update", (data) => {
+          // Update Header if chatting with them
+          if (data.userId === dom.targetId.value) {
+            updateHeader(data.status === "online");
+          }
+          // Update List Item Indicator
+          const onlineDot = document.getElementById(
+            `status-dot-${data.userId}`
+          );
+          if (onlineDot) {
+            onlineDot.style.background =
+              data.status === "online" ? "#25d366" : "#ccc";
+          }
         });
       }
 
-      function disconnectUser() {
-        if (socket) {
-          socket.disconnect();
-          log("🔻 Manually disconnected");
+      function disconnectSocket() {
+        if (socket) socket.disconnect();
+        setConnectedState(false);
+      }
+
+      function setConnectedState(isConnected) {
+        if (isConnected) {
+          dom.btnConnect.classList.add("hidden");
+          dom.btnDisconnect.classList.remove("hidden");
+          dom.myId.disabled = true;
+          dom.chatArea.classList.add("active");
+          dom.btnHistory.disabled = false;
+          dom.btnMarkRead.disabled = false;
+          dom.btnRefreshList.disabled = false;
+          dom.msgInput.disabled = false;
+          dom.sendBtn.disabled = false;
+        } else {
+          dom.btnConnect.classList.remove("hidden");
+          dom.btnDisconnect.classList.add("hidden");
+          dom.myId.disabled = false;
+          dom.chatArea.classList.remove("active");
+          dom.btnHistory.disabled = true;
+          dom.btnMarkRead.disabled = true;
+          dom.btnRefreshList.disabled = true;
+          dom.msgInput.disabled = true;
+          dom.sendBtn.disabled = true;
+          dom.headerStatus.innerHTML = "Disconnected";
+          dom.userList.innerHTML = "";
         }
       }
 
-      function sendMessage() {
-        const from = document.getElementById("userId").value.trim();
-        const to = document.getElementById("chatWith").value.trim();
-        const text = document.getElementById("msg").value.trim();
-
-        if (!from || !to || !text)
-          return alert("⚠️ Please fill From, To, and Message fields");
-
-        // Emit Message
-        socket.emit("message:send", { from, to, text }, (ack) => {
-          lastMessageId = ack._id;
-
-          // Log the Full Acknowledgement Data
-          console.log("Ack Data:", ack);
-
-          let imgTag = "";
-          if (ack.senderImage) {
-            imgTag = `<img src="${ack.senderImage}" class="log-img" />`;
-          }
-
-          log(`
-            <div style="background:#efe; padding:5px; border-radius:4px;">
-                📤 <b>SENT SUCCESS (Ack):</b><br/>
-                ${imgTag} <b>${ack.senderName}</b>: "${ack.text}"<br/>
-                <small>Status: ${ack.status}</small>
-            </div>
-          `);
-        });
-      }
-
-      function typingStart() {
-        const from = document.getElementById("userId").value.trim();
-        const to = document.getElementById("chatWith").value.trim();
-        if (socket) socket.emit("typing:start", { from, to });
-      }
-
-      function typingStop() {
-        const from = document.getElementById("userId").value.trim();
-        const to = document.getElementById("chatWith").value.trim();
-        if (socket) socket.emit("typing:stop", { from, to });
-      }
-
-      function markSeen() {
-        if (!lastMessageId)
-          return log(
-            "⚠️ No message ID to mark seen (receive or send one first)"
-          );
-
-        const chatWith = document.getElementById("chatWith").value.trim();
-        socket.emit("message:seen", { messageId: lastMessageId, chatWith });
-        log(`👁 <b>MARKED SEEN</b> for Msg: ${lastMessageId}`);
-      }
-
-      // Check API Presence
-      async function fetchPresence() {
-        const id = document.getElementById("chatWith").value.trim();
-        if (!id) return alert("⚠️ Enter receiver _id");
+      // --- 2. FETCH CHAT LIST (New Logic) ---
+      async function fetchUserList() {
+        const myId = dom.myId.value;
+        dom.userList.innerHTML =
+          '<div style="padding:20px; text-align:center;">Loading...</div>';
 
         try {
-          // Note: Verify your route path. Assuming standard: /api/chat/presence/:id
-          const res = await fetch(`${API_BASE}/api/chat/presence/${id}`);
-          const data = await res.json();
-          log(
-            `🟡 <b>API CHECK:</b> User is <b>${
-              data.isOnline ? "ONLINE" : "OFFLINE"
-            }</b> (Last Seen: ${data.lastSeen || "Now"})`
-          );
+          // Hitting your new endpoint
+          const res = await fetch(`${API_URL}/api/chat/users/${myId}`);
+          const users = await res.json();
+
+          dom.userList.innerHTML = "";
+
+          if (users.length === 0) {
+            dom.userList.innerHTML =
+              '<div style="padding:20px; text-align:center; font-size:12px;">No chats found</div>';
+            return;
+          }
+
+          users.forEach((u) => {
+            const isOnline = u.isOnline ? true : false;
+            const imgUrl = u.profileImage || "https://via.placeholder.com/40";
+
+            const div = document.createElement("div");
+            div.className = "user-item";
+            div.onclick = () => selectUser(u);
+
+            div.innerHTML = `
+                    <div class="user-item-avatar">
+                        <img src="${imgUrl}" alt="">
+                    </div>
+                    <div class="user-item-info">
+                        <div class="user-item-name">${u.name || "Unknown"}</div>
+                        <div class="user-item-status">
+                            <span class="online-indicator" id="status-dot-${
+                              u._id
+                            }" 
+                                  style="background: ${
+                                    isOnline ? "#25d366" : "#ccc"
+                                  }"></span>
+                            ${isOnline ? "Online" : "Offline"}
+                        </div>
+                    </div>
+                `;
+            dom.userList.appendChild(div);
+          });
+          log("📂 Loaded Chat List");
         } catch (e) {
-          log(`❌ <b>API ERROR:</b> ${e.message}`);
+          console.error(e);
+          dom.userList.innerHTML =
+            '<div style="padding:20px; text-align:center; color:red;">Error loading list</div>';
         }
+      }
+
+      function selectUser(user) {
+        dom.targetId.value = user._id;
+        dom.headerName.innerText = user.name || "Unknown";
+
+        const isOnline = user.isOnline ? true : false;
+        updateHeader(isOnline);
+
+        if (user.profileImage) {
+          dom.headerAvatar.innerHTML = `<img src="${user.profileImage}">`;
+        }
+
+        // Highlight selected item style
+        const items = document.querySelectorAll(".user-item");
+        items.forEach((i) => i.classList.remove("active"));
+        // (Visual highlight would go here if we tracked the element index)
+
+        // Load history automatically
+        loadHistory();
+      }
+
+      // --- 3. LOAD HISTORY ---
+      async function loadHistory() {
+        const me = dom.myId.value;
+        const user = dom.targetId.value;
+        if (!me || !user) return;
+
+        dom.msgContainer.innerHTML = "";
+        currentMessages = [];
+
+        try {
+          const res = await fetch(
+            `${API_URL}/api/chat/history?me=${me}&user=${user}`
+          );
+          const msgs = await res.json();
+
+          currentMessages = msgs;
+          msgs.forEach((msg) => {
+            const type = msg.from === me ? "sent" : "received";
+            appendMessage(msg, type);
+          });
+
+          markAllAsRead(); // Auto mark read
+        } catch (e) {
+          log("❌ Error history", "error");
+        }
+      }
+
+      function markAllAsRead() {
+        if (!socket) return;
+        const targetId = dom.targetId.value;
+        currentMessages.forEach((msg) => {
+          if (msg.from === targetId && msg.status !== "seen") {
+            socket.emit("message:seen", {
+              messageId: msg._id,
+              chatWith: msg.from,
+            });
+          }
+        });
+      }
+
+      // --- 4. SEND MESSAGE ---
+      function sendMessage() {
+        const text = dom.msgInput.value.trim();
+        const from = dom.myId.value;
+        const to = dom.targetId.value;
+        if (!text) return;
+
+        socket.emit("message:send", { from, to, text }, (ack) => {
+          if (ack.error) return log("❌ Error", "error");
+          appendMessage(ack, "sent");
+          currentMessages.push(ack);
+          dom.msgInput.value = "";
+        });
+      }
+
+      // --- HELPER UI ---
+      function appendMessage(data, type) {
+        const div = document.createElement("div");
+        div.className = `msg-bubble ${type}`;
+        div.id = `msg-${data._id}`;
+
+        const time = new Date(data.createdAt || Date.now()).toLocaleTimeString(
+          [],
+          { hour: "2-digit", minute: "2-digit" }
+        );
+
+        let tickHtml = "";
+        if (type === "sent") {
+          tickHtml = `<span class="msg-tick ${data.status}" id="tick-${
+            data._id
+          }">${getTickIcon(data.status)}</span>`;
+        }
+
+        div.innerHTML = `${data.text}<div class="msg-meta"><span class="msg-time">${time}</span>${tickHtml}</div>`;
+        dom.msgContainer.appendChild(div);
+        dom.msgContainer.scrollTop = dom.msgContainer.scrollHeight;
+      }
+
+      function updateTick(id, status) {
+        const el = document.getElementById(`tick-${id}`);
+        if (el) {
+          el.className = `msg-tick ${status}`;
+          el.innerHTML = getTickIcon(status);
+        }
+      }
+
+      function getTickIcon(status) {
+        if (status === "seen" || status === "delivered")
+          return '<i class="fas fa-check-double"></i>';
+        return '<i class="fas fa-check"></i>';
+      }
+
+      function updateHeader(isOnline) {
+        dom.headerStatus.innerHTML = isOnline
+          ? 'Online <div class="status-dot online"></div>'
+          : 'Offline <div class="status-dot"></div>';
+      }
+
+      function handleEnter(e) {
+        if (e.key === "Enter") sendMessage();
       }
     </script>
   </body>
