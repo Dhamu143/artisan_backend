@@ -1,20 +1,44 @@
+const mongoose = require("mongoose");
 const Message = require("../models/Message");
 
 const chatId = (u1, u2) => [u1, u2].sort().join("_");
 
 exports.getChatHistory = async (req, res) => {
-  const { me, user } = req.query;
+  try {
+    const { me, user, beforeMessageId, pageSize = 20 } = req.query;
 
-  if (!me || !user)
-    return res.status(400).json({ message: "me and user are required" });
+    if (!me || !user)
+      return res.status(400).json({ message: "me and user are required" });
 
-  const cid = chatId(me, user);
+    const cid = chatId(me, user);
 
-  const history = await Message.find({ chatId: cid }).sort({ createdAt: 1 });
+    const query = { chatId: cid };
 
-  res.json(history);
+    if (beforeMessageId && mongoose.isValidObjectId(beforeMessageId)) {
+      const cursorMsg = await Message.findById(beforeMessageId).select(
+        "createdAt"
+      );
+
+      if (cursorMsg) {
+        query.createdAt = { $lt: cursorMsg.createdAt };
+      }
+    }
+
+    const messages = await Message.find(query)
+      .sort({ createdAt: -1 }) 
+      .limit(Number(pageSize));
+    const ordered = messages.reverse();
+
+    res.json({
+      messages: ordered,
+      hasMore: messages.length === Number(pageSize),
+      nextCursor: ordered.length > 0 ? ordered[0]._id : null, 
+    });
+  } catch (err) {
+    console.error("❌ Chat history error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
-
 exports.createMessage = async (data) => {
   const msg = await Message.create({
     from: data.from,

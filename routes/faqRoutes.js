@@ -8,7 +8,7 @@ const {
   deleteFAQ,
 } = require("../controllers/faqController");
 
-// CRUD Routes
+
 router.post("/create", createFAQ);
 router.get("/", getAllFAQs);
 router.put("/:id", updateFAQ);

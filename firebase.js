@@ -14,8 +14,8 @@ const projectId = cleanEnvVar(process.env.GOOGLE_PROJECT_ID);
 const clientEmail = cleanEnvVar(process.env.GOOGLE_CLIENT_EMAIL);
 let privateKey = process.env.GOOGLE_PRIVATE_KEY;
 
-console.log(`👤 [FIREBASE] Client Email: '${clientEmail}'`);
-console.log(`🆔 [FIREBASE] Project ID:   '${projectId}'`);
+// console.log(`👤 [FIREBASE] Client Email: '${clientEmail}'`);
+// console.log(`🆔 [FIREBASE] Project ID:   '${projectId}'`);
 
 if (!privateKey) {
   console.error("❌ [FIREBASE] GOOGLE_PRIVATE_KEY is missing!");

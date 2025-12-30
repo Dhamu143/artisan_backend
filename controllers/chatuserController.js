@@ -61,6 +61,26 @@ exports.getPresence = async (req, res) => {
 
   res.json(user);
 };
+
+exports.markChatMessagesSeen = async ({ me, chatWith }) => {
+  console.log("📩 markChatMessagesSeen called");
+  console.log("👉 Me:", me);
+  console.log("👉 Chat With:", chatWith);
+
+  const result = await Message.updateMany(
+    {
+      from: chatWith,
+      to: me,
+      status: { $ne: "seen" },
+    },
+    { status: "seen" }
+  );
+
+  console.log("✔️ Messages updated:", result.modifiedCount);
+
+  return result;
+};
+
 exports.getChatUsersList = async (req, res) => {
   try {
     const currentUserId = req.params.userId;
@@ -73,14 +93,12 @@ exports.getChatUsersList = async (req, res) => {
     }
 
     const usersList = await Message.aggregate([
-      // 1. Find all messages involving this user
       {
         $match: {
           $or: [{ from: currentUserId }, { to: currentUserId }],
         },
       },
 
-      // 2. Identify the "Other Person" (Calculate this EARLY so we can group by it)
       {
         $addFields: {
           otherUserId: {
@@ -93,47 +111,40 @@ exports.getChatUsersList = async (req, res) => {
         },
       },
 
-      // 3. SORT by Date DESCENDING (Crucial for getting the LAST message)
       { $sort: { createdAt: -1 } },
 
-      // 4. GROUP by the Other User
       {
         $group: {
           _id: "$otherUserId",
 
-          // Get details of the very first message in the sorted list (The Latest One)
           lastMessage: { $first: "$text" },
           lastMessageTime: { $first: "$createdAt" },
           lastSenderId: { $first: "$from" },
           lastMessageStatus: { $first: "$status" },
 
-          // CALCULATE UNREAD COUNT
-          // Logic: Sum 1 if (Receiver is ME) AND (Status is NOT 'seen')
           unreadCount: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $eq: ["$to", currentUserId] }, // Sent TO me
-                    { $ne: ["$status", "seen"] }, // Not Read yet
+                    { $eq: ["$to", currentUserId] },
+                    { $ne: ["$status", "seen"] },
                   ],
                 },
-                1, // Add 1 to count
-                0, // Add 0 to count
+                1,
+                0,
               ],
             },
           },
         },
       },
 
-      // 5. Convert String ID to ObjectId for Lookup
       {
         $addFields: {
           userObjectId: { $toObjectId: "$_id" },
         },
       },
 
-      // 6. Join with Users collection to get profile info
       {
         $lookup: {
           from: "users",
@@ -143,10 +154,8 @@ exports.getChatUsersList = async (req, res) => {
         },
       },
 
-      // 7. Unwind the array
       { $unwind: "$userDetails" },
 
-      // 8. Select and Format Final Fields
       {
         $project: {
           _id: "$userDetails._id",
@@ -155,7 +164,7 @@ exports.getChatUsersList = async (req, res) => {
           categoryId: "$userDetails.categoryId",
           subCategoryId: "$userDetails.subCategoryId",
           isOnline: "$userDetails.isOnline",
-          
+
           lastMessage: 1,
           lastMessageTime: 1,
           unreadCount: 1,
@@ -164,7 +173,6 @@ exports.getChatUsersList = async (req, res) => {
         },
       },
 
-      // 9. Final Sort: Show users with most recent messages at the top
       { $sort: { lastMessageTime: -1 } },
     ]);
 

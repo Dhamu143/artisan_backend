@@ -1,12 +1,3 @@
-// const express = require("express");
-// const router = express.Router();
-
-// const { googleLogin } = require("../controllers/googleAuthController");
-
-// router.post("/auth", googleLogin);
-
-// module.exports = router;
-
 // const GoogleStrategy = require("passport-google-oauth20").Strategy;
 // const mongoose = require("mongoose");
 // const User = require("../models/userModel"); 
@@ -20,7 +11,7 @@
 //         callbackURL: "/api/google/callback",
 //       },
 //       async (accessToken, refreshToken, profile, done) => {
-//         const newUser = {
+//                const newUser = {
 //           googleId: profile.id,
 //           displayName: profile.displayName,
 //           email: profile.emails[0].value,

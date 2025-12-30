@@ -34,6 +34,8 @@ ratingSchema.index({ rated_by: 1 });
 ratingSchema.index({ rated_to: 1 });
 
 module.exports = mongoose.model("Rating", ratingSchema);
+
+
 // const mongoose = require("mongoose");
 
 // const ratingSchema = new mongoose.Schema(

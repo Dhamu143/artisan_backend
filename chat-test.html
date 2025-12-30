@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>King Bites Chat | Admin Console</title>
+    <title>Admin Console</title>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <link
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -135,6 +135,23 @@
         background: #f0f2f5;
       }
 
+      /* LOAD MORE BUTTON */
+      .btn-load-more {
+        background: #fff;
+        border: 1px solid #e9edef;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        color: #54656f;
+        width: auto;
+        margin: 10px auto;
+        padding: 5px 15px;
+        font-size: 11px;
+        border-radius: 20px;
+        cursor: pointer;
+      }
+      .btn-load-more:hover {
+        background-color: #f0f2f5;
+      }
+
       /* USER LIST SECTION */
       .user-list-container {
         flex: 1;
@@ -252,6 +269,34 @@
         align-items: center;
         gap: 15px;
       }
+      .user-meta {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .user-meta h4 {
+        margin: 0;
+        font-size: 16px;
+        color: #111b21;
+      }
+      .user-meta span {
+        font-size: 12px;
+        color: #667781;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        background: #ccc;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .status-dot.online {
+        background: #25d366;
+      }
+
       .avatar {
         width: 40px;
         height: 40px;
@@ -390,7 +435,7 @@
               id="btnHistory"
               disabled
             >
-              <i class="fas fa-history"></i> History
+              <i class="fas fa-sync"></i> Reload Chat
             </button>
             <button
               class="btn-outline"
@@ -441,7 +486,7 @@
             </div>
             <div class="user-meta">
               <h4 id="headerName">Select User</h4>
-              <!-- <span id="headerStatus">Disconnected</span> -->
+              <span id="headerStatus">Disconnected</span>
             </div>
           </div>
         </div>
@@ -454,6 +499,7 @@
             placeholder="Type a message..."
             disabled
             onkeypress="handleEnter(event)"
+            oninput="handleTyping()"
           />
           <button
             id="sendBtn"
@@ -471,6 +517,16 @@
       const API_URL = "http://localhost:5000";
       let socket = null;
       let currentMessages = [];
+
+      // --- PAGINATION STATE ---
+      let nextCursor = null;
+      let isLoadingHistory = false;
+      const PAGE_SIZE = 20;
+
+      // --- TYPING STATE ---
+      let myTypingTimeout = null;
+      let isRemoteOnline = false;
+      let isRemoteTyping = false;
 
       // --- DOM Elements ---
       const dom = {
@@ -512,8 +568,6 @@
           log("🟢 Connected");
           socket.emit("user:online", userId);
           setConnectedState(true);
-
-          // Auto-fetch users upon connection
           fetchUserList();
         });
 
@@ -526,7 +580,6 @@
           appendMessage(data, "received");
           currentMessages.push(data);
 
-          // Auto-Seen if chat is open with this user
           if (dom.targetId.value === data.from) {
             socket.emit("message:seen", {
               messageId: data._id,
@@ -541,18 +594,36 @@
           if (msg) msg.status = data.status;
         });
 
+        // --- Presence Listeners ---
         socket.on("presence:update", (data) => {
-          // Update Header if chatting with them
-          if (data.userId === dom.targetId.value) {
-            updateHeader(data.status === "online");
-          }
-          // Update List Item Indicator
+          // Update visual dot in list
           const onlineDot = document.getElementById(
             `status-dot-${data.userId}`
           );
           if (onlineDot) {
             onlineDot.style.background =
               data.status === "online" ? "#25d366" : "#ccc";
+          }
+
+          // Update Header if we are chatting with this user
+          if (data.userId === dom.targetId.value) {
+            isRemoteOnline = data.status === "online";
+            renderHeaderStatus();
+          }
+        });
+
+        // --- Typing Listeners ---
+        socket.on("typing:start", ({ from }) => {
+          if (from === dom.targetId.value) {
+            isRemoteTyping = true;
+            renderHeaderStatus();
+          }
+        });
+
+        socket.on("typing:stop", ({ from }) => {
+          if (from === dom.targetId.value) {
+            isRemoteTyping = false;
+            renderHeaderStatus();
           }
         });
       }
@@ -583,19 +654,19 @@
           dom.btnRefreshList.disabled = true;
           dom.msgInput.disabled = true;
           dom.sendBtn.disabled = true;
-          dom.headerStatus.innerHTML = "Disconnected";
+          dom.headerName.innerText = "Select User";
+          dom.headerStatus.innerText = "Disconnected";
           dom.userList.innerHTML = "";
         }
       }
 
-      // --- 2. FETCH CHAT LIST (New Logic) ---
+      // --- 2. FETCH CHAT LIST ---
       async function fetchUserList() {
         const myId = dom.myId.value;
         dom.userList.innerHTML =
           '<div style="padding:20px; text-align:center;">Loading...</div>';
 
         try {
-          // Hitting your new endpoint
           const res = await fetch(`${API_URL}/api/chat/users/${myId}`);
           const users = await res.json();
 
@@ -646,46 +717,102 @@
         dom.targetId.value = user._id;
         dom.headerName.innerText = user.name || "Unknown";
 
-        const isOnline = user.isOnline ? true : false;
-        updateHeader(isOnline);
+        // Initialize state for new user
+        isRemoteOnline = user.isOnline ? true : false;
+        isRemoteTyping = false; // reset typing status on switch
+        renderHeaderStatus();
 
         if (user.profileImage) {
           dom.headerAvatar.innerHTML = `<img src="${user.profileImage}">`;
         }
 
-        // Highlight selected item style
         const items = document.querySelectorAll(".user-item");
         items.forEach((i) => i.classList.remove("active"));
-        // (Visual highlight would go here if we tracked the element index)
 
-        // Load history automatically
         loadHistory();
       }
 
-      // --- 3. LOAD HISTORY ---
-      async function loadHistory() {
+      // --- 3. LOAD HISTORY (INITIAL) ---
+      function loadHistory() {
+        nextCursor = null;
+        currentMessages = [];
+        dom.msgContainer.innerHTML = "";
+        fetchChatHistory();
+      }
+
+      // --- 4. LOAD MORE (PAGINATION) ---
+      function loadMoreMessages() {
+        if (isLoadingHistory || !nextCursor) return;
+        fetchChatHistory();
+      }
+
+      // --- 5. CORE FETCH FUNCTION ---
+      async function fetchChatHistory() {
         const me = dom.myId.value;
         const user = dom.targetId.value;
         if (!me || !user) return;
 
-        dom.msgContainer.innerHTML = "";
-        currentMessages = [];
+        isLoadingHistory = true;
+
+        const existingBtn = document.getElementById("btnLoadMore");
+        if (existingBtn) existingBtn.remove();
 
         try {
-          const res = await fetch(
-            `${API_URL}/api/chat/history?me=${me}&user=${user}`
-          );
-          const msgs = await res.json();
+          let url = `${API_URL}/api/chat/history?me=${me}&user=${user}&pageSize=${PAGE_SIZE}`;
+          if (nextCursor) {
+            url += `&beforeMessageId=${nextCursor}`;
+          }
 
-          currentMessages = msgs;
-          msgs.forEach((msg) => {
-            const type = msg.from === me ? "sent" : "received";
-            appendMessage(msg, type);
-          });
+          const res = await fetch(url);
+          const data = await res.json();
 
-          markAllAsRead(); // Auto mark read
+          const newMessages = data.messages || [];
+
+          nextCursor = data.nextCursor;
+          if (!nextCursor && !data.hasMore) {
+            nextCursor = null;
+          }
+
+          currentMessages = [...newMessages, ...currentMessages];
+
+          if (currentMessages.length === newMessages.length) {
+            newMessages.forEach((msg) => {
+              const type = msg.from === me ? "sent" : "received";
+              const div = createMessageElement(msg, type);
+              dom.msgContainer.appendChild(div);
+            });
+            dom.msgContainer.scrollTop = dom.msgContainer.scrollHeight;
+          } else {
+            const fragment = document.createDocumentFragment();
+
+            newMessages.forEach((msg) => {
+              const type = msg.from === me ? "sent" : "received";
+              const div = createMessageElement(msg, type);
+              fragment.appendChild(div);
+            });
+
+            const previousHeight = dom.msgContainer.scrollHeight;
+            dom.msgContainer.prepend(fragment);
+            const currentHeight = dom.msgContainer.scrollHeight;
+            dom.msgContainer.scrollTop = currentHeight - previousHeight;
+          }
+
+          if (data.hasMore && nextCursor) {
+            const btn = document.createElement("button");
+            btn.id = "btnLoadMore";
+            btn.className = "btn-load-more";
+            btn.innerText = "Load Older Messages";
+            btn.onclick = loadMoreMessages;
+
+            dom.msgContainer.prepend(btn);
+          }
+
+          markAllAsRead();
         } catch (e) {
           log("❌ Error history", "error");
+          console.error(e);
+        } finally {
+          isLoadingHistory = false;
         }
       }
 
@@ -702,12 +829,31 @@
         });
       }
 
-      // --- 4. SEND MESSAGE ---
+      // --- 6. SEND MESSAGE & TYPING ---
+      function handleTyping() {
+        const to = dom.targetId.value;
+        const from = dom.myId.value;
+        if (!to || !from || !socket) return;
+
+        // Emit typing start
+        socket.emit("typing:start", { from, to });
+
+        // Debounce typing stop
+        clearTimeout(myTypingTimeout);
+        myTypingTimeout = setTimeout(() => {
+          socket.emit("typing:stop", { from, to });
+        }, 1000);
+      }
+
       function sendMessage() {
         const text = dom.msgInput.value.trim();
         const from = dom.myId.value;
         const to = dom.targetId.value;
         if (!text) return;
+
+        // Stop typing immediately upon send
+        clearTimeout(myTypingTimeout);
+        socket.emit("typing:stop", { from, to });
 
         socket.emit("message:send", { from, to, text }, (ack) => {
           if (ack.error) return log("❌ Error", "error");
@@ -718,7 +864,8 @@
       }
 
       // --- HELPER UI ---
-      function appendMessage(data, type) {
+
+      function createMessageElement(data, type) {
         const div = document.createElement("div");
         div.className = `msg-bubble ${type}`;
         div.id = `msg-${data._id}`;
@@ -736,6 +883,11 @@
         }
 
         div.innerHTML = `${data.text}<div class="msg-meta"><span class="msg-time">${time}</span>${tickHtml}</div>`;
+        return div;
+      }
+
+      function appendMessage(data, type) {
+        const div = createMessageElement(data, type);
         dom.msgContainer.appendChild(div);
         dom.msgContainer.scrollTop = dom.msgContainer.scrollHeight;
       }
@@ -754,10 +906,22 @@
         return '<i class="fas fa-check"></i>';
       }
 
+      // New function to handle both Online and Typing states
+      function renderHeaderStatus() {
+        if (isRemoteTyping) {
+          dom.headerStatus.innerHTML =
+            '<span style="color:#00a884; font-weight:bold;">typing...</span>';
+        } else {
+          dom.headerStatus.innerHTML = isRemoteOnline
+            ? 'Online <div class="status-dot online"></div>'
+            : 'Offline <div class="status-dot"></div>';
+        }
+      }
+
       function updateHeader(isOnline) {
-        dom.headerStatus.innerHTML = isOnline
-          ? 'Online <div class="status-dot online"></div>'
-          : 'Offline <div class="status-dot"></div>';
+        // Fallback helper, mostly replaced by renderHeaderStatus but kept for safety
+        isRemoteOnline = isOnline;
+        renderHeaderStatus();
       }
 
       function handleEnter(e) {

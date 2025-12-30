@@ -1,6 +1,14 @@
 const User = require("../models/userModel");
 const admin = require("../firebase");
 
+// --- Helper: Ensure all data values are Strings (Firebase Requirement) ---
+const safeStringifyData = (data = {}) => {
+  return Object.keys(data).reduce((acc, key) => {
+    acc[key] = String(data[key] || "");
+    return acc;
+  }, {});
+};
+
 exports.sendPushNotification = async (
   token,
   title,
@@ -14,23 +22,17 @@ exports.sendPushNotification = async (
   try {
     if (!token) return;
 
-    // ✅ LOG THE TOKEN HERE
-    console.log("👉 Sending FCM to Token:", token);
+    // console.log("👉 Sending FCM to Token:", token);
 
-    // 1. Prepare Data Payload
     const combinedData = {
       ...data,
-      // ✅ Critical: Convert Array/Numbers to Strings for FCM
       messageHistory: JSON.stringify(messageHistory),
       unreadCount: String(unreadCount),
       findArtisan: findArtisan ? "true" : "false",
     };
 
-    // 2. Ensure safety (Double check all values are strings)
-    const safeData = Object.keys(combinedData).reduce((acc, key) => {
-      acc[key] = String(combinedData[key] || "");
-      return acc;
-    }, {});
+    // Ensure data payload is purely strings
+    const safeData = safeStringifyData(combinedData);
 
     const messagePayload = {
       token,
@@ -38,24 +40,24 @@ exports.sendPushNotification = async (
       data: safeData,
     };
 
-    // 3. Android Grouping & Badge
+    // Android Config
     if (tag) {
       messagePayload.android = {
         notification: {
-          tag: tag, // Groups notifications by Chat ID
+          tag: tag,
           clickAction: "CHAT_ACTIVITY",
-          notificationCount: unreadCount,
+          notificationCount: Number(unreadCount), // Must be Number for System Badge
         },
       };
     }
 
-    // 4. iOS Grouping & Badge
+    // iOS Config
     if (tag) {
       messagePayload.apns = {
         payload: {
           aps: {
             "thread-id": tag,
-            badge: unreadCount,
+            badge: Number(unreadCount), // Must be Number for System Badge
           },
         },
       };
@@ -83,11 +85,14 @@ exports.sendNotificationToUser = async (req, res) => {
       return res.json({ success: false, message: "User has no FCM token" });
 
     const token = user.pushNotificationToken;
-    console.log("pushNotificationToken ", token);
+    // console.log("pushNotificationToken ", token);
+
+    const safeData = safeStringifyData(data);
+
     const response = await admin.messaging().send({
       token,
       notification: { title, body },
-      data: data || {},
+      data: safeData,
     });
 
     return res.json({ success: true, messageId: response });
@@ -113,10 +118,12 @@ exports.sendBulkNotifications = async (req, res) => {
     if (!tokens.length)
       return res.json({ success: false, message: "No valid tokens found" });
 
+    const safeData = safeStringifyData(data);
+
     const response = await admin.messaging().sendEachForMulticast({
       tokens,
       notification: { title, body },
-      data: data || {},
+      data: safeData,
     });
 
     return res.json({
@@ -141,21 +148,45 @@ exports.sendToAllUsers = async (req, res) => {
       pushNotificationToken: { $exists: true, $ne: "" },
     }).select("pushNotificationToken");
 
-    const tokens = users.map((u) => u.pushNotificationToken);
+    const allTokens = users.map((u) => u.pushNotificationToken).filter(Boolean);
 
-    if (!tokens.length)
+    if (!allTokens.length)
       return res.json({ success: false, message: "No tokens found" });
 
-    const response = await admin.messaging().sendEachForMulticast({
-      tokens,
-      notification: { title, body },
-      data: data || {},
+    const safeData = safeStringifyData(data);
+
+    // --- BATCHING LOGIC (Critical for Scale) ---
+    // Firebase limits sendEachForMulticast to 500 tokens per batch
+    const batchSize = 500;
+    const batches = [];
+
+    for (let i = 0; i < allTokens.length; i += batchSize) {
+      const batchTokens = allTokens.slice(i, i + batchSize);
+      batches.push(
+        admin.messaging().sendEachForMulticast({
+          tokens: batchTokens,
+          notification: { title, body },
+          data: safeData,
+        })
+      );
+    }
+
+    const results = await Promise.all(batches);
+
+    // Aggregate results
+    let successCount = 0;
+    let failureCount = 0;
+
+    results.forEach((r) => {
+      successCount += r.successCount;
+      failureCount += r.failureCount;
     });
 
     return res.json({
       success: true,
-      sent: response.successCount,
-      failed: response.failureCount,
+      totalTargets: allTokens.length,
+      sent: successCount,
+      failed: failureCount,
     });
   } catch (err) {
     console.error("Send all error:", err);

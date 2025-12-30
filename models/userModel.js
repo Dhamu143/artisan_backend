@@ -42,11 +42,25 @@ const userSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-
+    // googleId: {
+    //   type: String,
+    //   required: true,
+    //   unique: true,
+    // },
+    // email: {
+    //   type: String,
+    //   required: true,
+    //   unique: true,
+    // },
+    displayName: String,
+    image: String,
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
     languageCode: {
       type: String,
       enum: LANGUAGE_CODES,
-      // default: "en",
       index: true,
     },
     pushNotificationToken: { type: String },

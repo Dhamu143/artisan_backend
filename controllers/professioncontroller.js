@@ -47,30 +47,44 @@ function generateId() {
 }
 
 function getFlattenedProfessions(searchTerm = "") {
-  const term = searchTerm.toLowerCase();
+  const term = searchTerm.toLowerCase().trim();
 
+  // 1. Flatten the data structure
   const flattened = data.Categories.flatMap((category) => {
     const categoryName = category.Category_Name;
     const categoryId = category.id;
+
     const allProfessions = category.Subcategories
       ? category.Subcategories.flatMap((subcategory) =>
           subcategory.Professions.map((prof) => ({
             ...prof,
-            categoryId: categoryId, 
+            categoryId: categoryId,
             categoryName: categoryName,
             subcategoryName: subcategory.Subcategory_Name,
           }))
         )
       : (category.Professions || []).map((prof) => ({
           ...prof,
-          categoryId: categoryId, 
+          categoryId: categoryId,
           categoryName: categoryName,
           subcategoryName: "N/A",
         }));
 
     return allProfessions;
   });
-  return flattened;
+
+  // 2. THIS WAS MISSING: Actually filter the results if a search term exists
+  if (!term) return flattened;
+
+  return flattened.filter((item) => {
+    return (
+      item.display_name.toLowerCase().includes(term) ||
+      item.id.toLowerCase().includes(term) ||
+      (item.categoryName && item.categoryName.toLowerCase().includes(term)) ||
+      (item.subcategoryName &&
+        item.subcategoryName.toLowerCase().includes(term))
+    );
+  });
 }
 
 exports.getCategoriesList = (req, res) => {
@@ -624,7 +638,7 @@ exports.toggleArtisanPremium = async (req, res) => {
     const updatedArtisan = await User.findByIdAndUpdate(
       id,
       { isPremium: isPremium },
-      { new: true } 
+      { new: true }
     ).select("-password -otp -__v");
 
     if (!updatedArtisan) {
@@ -634,7 +648,7 @@ exports.toggleArtisanPremium = async (req, res) => {
     res.json({
       success: true,
       message: `Artisan premium status updated to ${isPremium}`,
-      artisan: updatedArtisan, 
+      artisan: updatedArtisan,
     });
   } catch (err) {
     console.error(err);
