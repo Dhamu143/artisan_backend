@@ -16,6 +16,70 @@ function findProfessionById(id) {
   }
   return null;
 }
+function findSubcategoryByNameInJson(name) {
+  const term = name.toLowerCase().trim();
+
+  for (const cat of data.Categories) {
+    if (cat.Subcategories) {
+      for (const sub of cat.Subcategories) {
+        if (
+          sub.Subcategory_Name &&
+          sub.Subcategory_Name.toLowerCase() === term
+        ) {
+          return sub; 
+        }
+
+        if (sub.Professions) {
+          const foundProf = sub.Professions.find(
+            (p) =>
+              (p.display_name && p.display_name.toLowerCase() === term) ||
+              (p.englishName && p.englishName.toLowerCase() === term) // Backup check
+          );
+
+          if (foundProf) {
+            return foundProf; 
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// ✅ FIXED: Searches inside 'Professions' array for Universal Search
+function findSubcategoryIdsByTerm(term) {
+  const ids = [];
+  const lowerTerm = term.toLowerCase().trim();
+
+  data.Categories.forEach((cat) => {
+    if (cat.Subcategories) {
+      cat.Subcategories.forEach((sub) => {
+        // 1. Check Group Name
+        if (
+          sub.Subcategory_Name &&
+          sub.Subcategory_Name.toLowerCase().includes(lowerTerm)
+        ) {
+          // If the group matches, add ALL its professions?
+          // Or usually, we just want specific matches.
+          // For now, let's look for specific professions.
+        }
+
+        // 2. Check Professions
+        if (sub.Professions) {
+          sub.Professions.forEach((p) => {
+            if (
+              p.display_name &&
+              p.display_name.toLowerCase().includes(lowerTerm)
+            ) {
+              ids.push(p.id); // Pushes "AA001"
+            }
+          });
+        }
+      });
+    }
+  });
+  return ids;
+}
 
 function findSubcategory(categoryId, subcategoryName) {
   const targetCategory = data.Categories.find((c) => c.id === categoryId);
@@ -484,11 +548,16 @@ exports.deleteProfession = (req, res) => {
   });
 };
 
+// ==========================================
+// 🚀 FIXED getArtisans FUNCTION (NO $LOOKUP)
+// ==========================================
 exports.getArtisans = async (req, res) => {
+  console.log("\n--- 🚀 API CALLED: getArtisans (JSON-Based Fix) ---");
   try {
     let {
       categoryId,
       subCategoryId,
+      subCategoryName,
       city,
       businessName,
       isAuthenticat,
@@ -500,75 +569,94 @@ exports.getArtisans = async (req, res) => {
       limit = 10,
     } = req.query;
 
+    page = Number(page);
+    limit = Number(limit);
     const skip = (page - 1) * limit;
+
     const query = { findArtisan: false };
 
-    if (isAuthenticat !== undefined) {
+    if (isAuthenticat !== undefined)
       query.isAuthenticat = isAuthenticat === true || isAuthenticat === "true";
-    }
-    if (isPremium !== undefined) {
+    if (isPremium !== undefined)
       query.isPremium = isPremium === true || isPremium === "true";
-    }
-    if (isAvailable !== undefined) {
+    if (isAvailable !== undefined)
       query.isAvailable = isAvailable === true || isAvailable === "true";
-    }
-    if (isOnline !== undefined) {
+    if (isOnline !== undefined)
       query.isOnline = isOnline === true || isOnline === "true";
+    if (languageCode) query.languageCode = languageCode;
+
+    if (categoryId) query.categoryId = { $in: categoryId.split(",") };
+    if (subCategoryId) query.subCategoryId = { $in: subCategoryId.split(",") };
+
+    // --- FIX 1: Search Subcategory ID in JSON first ---
+    if (subCategoryName) {
+      const targetSub = findSubcategoryByNameInJson(subCategoryName);
+      if (targetSub) {
+        query.subCategoryId = targetSub.id; // Search Mongo using the ID we found
+      } else {
+        query.subCategoryId = "NON_EXISTENT_ID"; // Force 0 results if name not found
+      }
     }
 
-    if (categoryId) {
-      query.categoryId = { $in: categoryId.split(",") };
-    }
-
-    if (subCategoryId) {
-      query.subCategoryId = { $in: subCategoryId.split(",") };
-    }
-
-    if (languageCode) {
-      query.languageCode = languageCode;
-    }
-
+    // --- FIX 2: Universal Search using JSON IDs ---
     const searchCity = city?.toLowerCase().trim();
     const searchBusiness = businessName?.toLowerCase().trim();
+    const search = searchCity || searchBusiness;
 
-    if (searchCity || searchBusiness) {
-      const search = searchCity || searchBusiness;
+    const matchStage = { $match: query };
 
-      query.$or = [
+    if (search) {
+      // Find ALL subcategory IDs that match the term
+      const matchingSubIds = findSubcategoryIdsByTerm(search);
+
+      const searchConditions = [
         { city: { $regex: search, $options: "i" } },
         { businessName: { $regex: search, $options: "i" } },
         { name: { $regex: search, $options: "i" } },
         { mobile_number: { $regex: search, $options: "i" } },
       ];
+
+      // Add matching Subcategory IDs to the search
+      if (matchingSubIds.length > 0) {
+        searchConditions.push({ subCategoryId: { $in: matchingSubIds } });
+      }
+
+      matchStage.$match.$or = searchConditions;
     }
 
-    const total = await User.countDocuments(query);
+    // --- Pipeline without $lookup ---
+    const pipeline = [
+      matchStage,
+      {
+        $sort: {
+          isPremium: -1,
+          isAuthenticat: -1,
+          createdAt: -1,
+        },
+      },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $project: { password: 0, otp: 0, __v: 0 },
+      },
+    ];
 
-    const users = await User.find(query)
-      .select("-password -otp -__v")
-      .skip(skip)
-      .limit(Number(limit))
-      .sort({
-        isPremium: -1,
-        isAuthenticat: -1,
-        createdAt: -1,
-      });
-
+    const totalCount = await User.countDocuments(matchStage.$match);
+    const users = await User.aggregate(pipeline);
     const artisans = users.map(enrichUserWithCategoryData);
 
     res.json({
       issuccess: true,
       artisans,
-      total,
-      totalPages: Math.ceil(total / limit),
-      page: Number(page),
+      total: totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      page,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });
   }
 };
-
 exports.getArtisanById = async (req, res) => {
   try {
     const { id } = req.params;

@@ -8,6 +8,65 @@ const safeStringifyData = (data = {}) => {
   }, {});
 };
 
+// exports.sendPushNotification = async (
+//   token,
+//   title,
+//   body,
+//   data = {},
+//   tag = null,
+//   messageHistory = [],
+//   unreadCount = 1,
+//   findArtisan = false
+// ) => {
+//   try {
+//     if (!token) return;
+
+//     console.log("👉 Sending FCM to Token:", token);
+
+//     const combinedData = {
+//       ...data,
+//       messageHistory: JSON.stringify(messageHistory),
+//       unreadCount: String(unreadCount),
+//       findArtisan: findArtisan ? "true" : "false",
+//     };
+
+//     const safeData = safeStringifyData(combinedData);
+
+//     const messagePayload = {
+//       token,
+//       notification: { title, body },
+//       data: safeData,
+//     };
+
+//     if (tag) {
+//       messagePayload.android = {
+//         notification: {
+//           tag: tag,
+//           clickAction: "CHAT_ACTIVITY",
+//           notificationCount: Number(unreadCount),
+//         },
+//       };
+//     }
+
+//     // iOS Config
+//     if (tag) {
+//       messagePayload.apns = {
+//         payload: {
+//           aps: {
+//             "thread-id": tag,
+//             badge: Number(unreadCount),
+//           },
+//         },
+//       };
+//     }
+
+//     await admin.messaging().send(messagePayload);
+//     console.log(`🔔 FCM Sent | Tag: ${tag} | Count: ${unreadCount}`);
+//   } catch (err) {
+//     console.error("❌ FCM Error:", err.message);
+//   }
+// };
+
 exports.sendPushNotification = async (
   token,
   title,
@@ -19,9 +78,18 @@ exports.sendPushNotification = async (
   findArtisan = false
 ) => {
   try {
-    if (!token) return;
+    if (!token) {
+      console.log("⚠️ Skipping push — empty token");
+      return;
+    }
 
-    console.log("👉 Sending FCM to Token:", token);
+    console.log("📨 Preparing Push Notification", {
+      title,
+      body,
+      tokenPreview: token.slice(0, 12) + "...",
+      unreadCount,
+      hasMessageHistory: Boolean(messageHistory?.length),
+    });
 
     const combinedData = {
       ...data,
@@ -38,32 +106,40 @@ exports.sendPushNotification = async (
       data: safeData,
     };
 
+    console.log("📦 Payload Data Keys", Object.keys(safeData));
+
     if (tag) {
       messagePayload.android = {
         notification: {
-          tag: tag,
+          tag,
           clickAction: "CHAT_ACTIVITY",
-          notificationCount: Number(unreadCount), 
+          notificationCount: Number(unreadCount),
         },
       };
-    }
 
-    // iOS Config
-    if (tag) {
       messagePayload.apns = {
         payload: {
           aps: {
             "thread-id": tag,
-            badge: Number(unreadCount), 
+            badge: Number(unreadCount),
           },
         },
       };
     }
 
+    console.log("🚀 Sending FCM Message", {
+      tag,
+      unreadCount,
+    });
+
     await admin.messaging().send(messagePayload);
-    console.log(`🔔 FCM Sent | Tag: ${tag} | Count: ${unreadCount}`);
+
+    console.log(`✅ Push Sent | Tag=${tag} | Count=${unreadCount}`);
   } catch (err) {
-    console.error("❌ FCM Error:", err.message);
+    console.error("❌ FCM Error:", {
+      message: err.message,
+      code: err.code,
+    });
   }
 };
 
@@ -71,30 +147,73 @@ exports.sendNotificationToUser = async (req, res) => {
   try {
     const { userId, title, body, data } = req.body;
 
-    if (!userId || !title || !body)
+    console.log("📨 Notification request received", {
+      userId,
+      title,
+      hasBody: Boolean(body),
+      hasData: Boolean(data),
+    });
+
+    if (!userId || !title || !body) {
+      console.log("⚠️ Missing required fields");
       return res.status(400).json({ message: "Missing fields" });
+    }
 
     const user = await User.findById(userId).select(
       "pushNotificationToken name"
     );
 
-    if (!user || !user.pushNotificationToken)
+    if (!user) {
+      console.log("❌ User not found:", userId);
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    if (!user.pushNotificationToken) {
+      console.log(
+        "⚠️ User has no FCM token — skipping send:",
+        userId,
+        user.name
+      );
       return res.json({ success: false, message: "User has no FCM token" });
+    }
 
     const token = user.pushNotificationToken;
-    // console.log("pushNotificationToken ", token);
+
+    console.log("📌 Sending notification to:", {
+      userId: user._id,
+      userName: user.name,
+      tokenPreview: token.slice(0, 12) + "...",
+    });
 
     const safeData = safeStringifyData(data);
 
-    const response = await admin.messaging().send({
+    const payload = {
       token,
       notification: { title, body },
       data: safeData,
+    };
+
+    console.log("🚀 FCM payload prepared", {
+      title,
+      body,
+      dataKeys: Object.keys(safeData || {}),
+    });
+
+    const response = await admin.messaging().send(payload);
+
+    console.log("✅ Notification sent successfully", {
+      userId: user._id,
+      messageId: response,
     });
 
     return res.json({ success: true, messageId: response });
   } catch (err) {
-    console.error("FCM send error:", err);
+    console.error("❌ FCM send error", {
+      message: err.message,
+      code: err.code,
+      stack: err.stack?.split("\n")[0],
+    });
+
     return res.status(500).json({ message: "Notification send failed" });
   }
 };
