@@ -1,7 +1,6 @@
 const User = require("../models/userModel");
 const admin = require("../firebase");
 
-// --- Helper: Ensure all data values are Strings (Firebase Requirement) ---
 const safeStringifyData = (data = {}) => {
   return Object.keys(data).reduce((acc, key) => {
     acc[key] = String(data[key] || "");
@@ -22,7 +21,7 @@ exports.sendPushNotification = async (
   try {
     if (!token) return;
 
-    // console.log("👉 Sending FCM to Token:", token);
+    console.log("👉 Sending FCM to Token:", token);
 
     const combinedData = {
       ...data,
@@ -31,7 +30,6 @@ exports.sendPushNotification = async (
       findArtisan: findArtisan ? "true" : "false",
     };
 
-    // Ensure data payload is purely strings
     const safeData = safeStringifyData(combinedData);
 
     const messagePayload = {
@@ -40,13 +38,12 @@ exports.sendPushNotification = async (
       data: safeData,
     };
 
-    // Android Config
     if (tag) {
       messagePayload.android = {
         notification: {
           tag: tag,
           clickAction: "CHAT_ACTIVITY",
-          notificationCount: Number(unreadCount), // Must be Number for System Badge
+          notificationCount: Number(unreadCount), 
         },
       };
     }
@@ -57,7 +54,7 @@ exports.sendPushNotification = async (
         payload: {
           aps: {
             "thread-id": tag,
-            badge: Number(unreadCount), // Must be Number for System Badge
+            badge: Number(unreadCount), 
           },
         },
       };
@@ -155,7 +152,6 @@ exports.sendToAllUsers = async (req, res) => {
 
     const safeData = safeStringifyData(data);
 
-    // --- BATCHING LOGIC (Critical for Scale) ---
     // Firebase limits sendEachForMulticast to 500 tokens per batch
     const batchSize = 500;
     const batches = [];

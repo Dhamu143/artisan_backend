@@ -66,9 +66,15 @@ connectDB();
 
 const server = http.createServer(app);
 
+// const io = new Server(server, {
+//   cors: {
+//     origin: "http://localhost:3000",
+//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//   },
+// });
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   },
 });
@@ -85,7 +91,7 @@ app.use("/api/professions", professionRouter);
 app.use("/api/admin-dashboard", adminDashboardRoutes);
 app.use("/api/faqs", faqRoutes);
 app.use("/api", profileViewRouter);
-// app.use("/api", googleAuthRoute); 
+// app.use("/api", googleAuthRoute);
 app.use("/api", notificationRoutes);
 app.use("/api/chat", chatRoutes);
 
