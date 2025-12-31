@@ -10,41 +10,29 @@ const session = require("express-session");
 const passport = require("passport");
 
 dotenv.config();
-// require("./config/passport")(passport); // Import passport config
-
-const authRoutes = require("./routes/authRoutes");
-const userRoutes = require("./routes/userRoutes");
-const adminRoutes = require("./routes/adminAuthRoutes");
-const uploadRoutes = require("./routes/uploadRoutes");
-const ratingRoutes = require("./routes/ratingRoutes");
-const professionRouter = require("./routes/professionrouter");
-const adminDashboardRoutes = require("./routes/adminDashboardRouters");
-const faqRoutes = require("./routes/faqRoutes");
-const profileViewRouter = require("./routes/profileViewRouter");
-// const googleAuthRoute = require("./routes/googleAuthRoute");
-const notificationRoutes = require("./routes/notificationRoutes");
-const chatRoutes = require("./routes/chatRoutes");
-const chatSocket = require("./socket/chatSocket");
 
 const app = express();
+
+/* IMPORTANT for Render reverse proxy */
+app.set("trust proxy", 1);
 
 app.use(
   cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    // credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "your_secret_key",
+    secret: process.env.ADMIN_JWT_SECRET || "your_secret_key",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
+      secure: false, // set true ONLY when your frontend is HTTPS + same domain
       maxAge: 24 * 60 * 60 * 1000,
     },
   })
@@ -53,54 +41,51 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-const connectDB = async () => {
+/* ---------- DB ---------- */
+(async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(error);
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("MongoDB Connected");
+  } catch (err) {
+    console.error("DB connection failed", err);
     process.exit(1);
   }
-};
-connectDB();
+})();
 
+/* ---------- HTTP + SOCKET SERVER ---------- */
 const server = http.createServer(app);
 
-// const io = new Server(server, {
-//   cors: {
-//     origin: "http://localhost:3000",
-//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//   },
-// });
 const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   },
+  transports: ["websocket", "polling"], // Render fix
+  allowEIO3: true, // compatibility
 });
 
-chatSocket(io);
+/* load chat handlers */
+require("./socket/chatSocket")(io);
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/ratings", ratingRoutes);
-app.use("/api/professions", professionRouter);
-app.use("/api/admin-dashboard", adminDashboardRoutes);
-app.use("/api/faqs", faqRoutes);
-app.use("/api", profileViewRouter);
-// app.use("/api", googleAuthRoute);
-app.use("/api", notificationRoutes);
-app.use("/api/chat", chatRoutes);
+/* ---------- ROUTES ---------- */
+app.get("/", (req, res) => res.send("Backend Running."));
 
-app.get("/", (req, res) => {
-  res.send("Backend Running.");
-});
+// your routes…
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/user", require("./routes/userRoutes"));
+app.use("/api/admin", require("./routes/adminAuthRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
+app.use("/api/ratings", require("./routes/ratingRoutes"));
+app.use("/api/professions", require("./routes/professionrouter"));
+app.use("/api/admin-dashboard", require("./routes/adminDashboardRouters"));
+app.use("/api/faqs", require("./routes/faqRoutes"));
+app.use("/api", require("./routes/profileViewRouter"));
+app.use("/api", require("./routes/notificationRoutes"));
+app.use("/api/chat", require("./routes/chatRoutes"));
 
+/* ---------- PORT ---------- */
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on ${PORT}`));
 
 // console.log("server running");
 
