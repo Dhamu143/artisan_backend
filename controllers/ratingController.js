@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 const Rating = require("../models/ratingModel");
 const User = require("../models/userModel");
 const calculateRatingStats = require("../utils/ratingStats");
-// Import the notification controller function
 const {
   sendPushNotification,
 } = require("../controllers/notificationcontroller");
@@ -75,7 +74,7 @@ const addRating = async (req, res) => {
         reviewerId: rated_by.toString(),
       };
 
-      console.log("🚀 Sending Rating Notification", {
+      console.log("🚀 Sending Rating Push Notification", {
         toUser: receiver.name,
         tokenPreview: receiver.pushNotificationToken.slice(0, 12) + "...",
         title,
@@ -83,16 +82,18 @@ const addRating = async (req, res) => {
         payloadData,
       });
 
-      sendPushNotification(
+      await sendPushNotification(
         receiver.pushNotificationToken,
         title,
         body,
-        payloadData
-      ).catch((err) =>
-        console.error("❌ Failed to send rating notification:", err)
+        payloadData,
+        null, 
+        [], 
+        1, 
+        false 
       );
 
-      console.log(`🔔 Notification queued for ${receiver.name}`);
+      console.log("🔔 Push notification sent for rating");
     } else {
       console.log("⚠️ Receiver has no FCM token — notification skipped");
     }

@@ -3,59 +3,14 @@ const { sendSMSToMobile } = require("../utils/smsService");
 const { saveOTP, verifyStoredOTP } = require("../utils/otpStore");
 const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
+const {
+  sendPushNotification,
+} = require("../controllers/notificationcontroller");
 
 const JWT_SECRET = process.env.JWT_SECRET || "SuperSecretKey";
 const TOKEN_EXPIRE_TIME = "365d";
 const COOKIE_EXPIRE_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 
-// const generateOtp = async (req, res) => {
-//   const { mobile_number, name } = req.body;
-
-//   if (!mobile_number) {
-//     return res.status(400).json({
-//       issuccess: false,
-//       error: "Mobile number is required",
-//     });
-//   }
-//   if (!name) {
-//     return res.status(400).json({
-//       issuccess: false,
-//       error: "Name is required",
-//     });
-//   }
-
-//   const otp = generateSixDigitOTP();
-
-//   try {
-//     const user = await User.findOneAndUpdate(
-//       { mobile_number },
-//       {
-//         $set: {
-//           name: name,
-//           isVerified: false,
-//         },
-//       },
-//       { new: true, upsert: true }
-//     );
-
-//     saveOTP(mobile_number, otp);
-//     await sendSMSToMobile(mobile_number, otp);
-
-//     return res.status(200).json({
-//       issuccess: true,
-//       message: "OTP generated and sent",
-//       name: name,
-//       otp,
-//       expiresIn: 60,
-//     });
-//   } catch (error) {
-//     console.error("OTP generation error:", error);
-//     return res.status(500).json({
-//       issuccess: false,
-//       error: "Internal server error",
-//     });
-//   }
-// };
 const generateOtp = async (req, res) => {
   const { mobile_number, name, languageCode, latitude, longitude } = req.body;
 
@@ -130,40 +85,6 @@ const generateOtp = async (req, res) => {
   }
 };
 
-// const resendOtp = async (req, res) => {
-//   const { mobile_number, name } = req.body;
-//   console.log("data of user", req.body);
-//   if (!mobile_number) {
-//     return res.status(400).json({ error: "Mobile number is required" });
-//   }
-
-//   const otp = generateSixDigitOTP();
-
-//   try {
-//     await User.findOneAndUpdate(
-//       { mobile_number },
-//       { $set: { name: name, isVerified: false } },
-//       { new: true, upsert: true }
-//     );
-
-//     saveOTP(mobile_number, otp);
-//     await sendSMSToMobile(mobile_number, otp);
-
-//     return res.status(200).json({
-//       issuccess: true,
-//       message: "OTP resent successfully",
-//       name: name,
-//       otp,
-//       expiresIn: 60,
-//     });
-//   } catch (error) {
-//     console.error("Resend OTP error:", error);
-//     return res.status(500).json({
-//       issuccess: false,
-//       error: "Internal server error",
-//     });
-//   }
-// };
 const resendOtp = async (req, res) => {
   const { mobile_number, name } = req.body;
 
@@ -203,72 +124,19 @@ const resendOtp = async (req, res) => {
   }
 };
 
-// const verifyOtp = async (req, res) => {
-//   const { mobile_number, otp } = req.body;
-
-//   if (!mobile_number || !otp) {
-//     return res.status(400).json({
-//       error: "Mobile number and OTP are required",
-//     });
-//   }
-
-//   try {
-//     // Validate OTP
-//     const isOtpValid = await verifyStoredOTP(mobile_number, otp);
-//     if (!isOtpValid) {
-//       return res.status(401).json({
-//         error: "Your OTP has expired. Kindly generate a new OTP to proceed.",
-//       });
-//     }
-
-//     // Find user
-//     const user = await User.findOne({ mobile_number });
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     user.isVerified = true;
-
-//     // Create JWT token
-//     const token = jwt.sign(
-//       { userId: user._id, mobile: user.mobile_number },
-//       JWT_SECRET,
-//       { expiresIn: TOKEN_EXPIRE_TIME }
-//     );
-
-//     user.token = token;
-
-//     await user.save();
-
-//     res.cookie("auth_token", token, {
-//       httpOnly: true,
-//       secure: false,
-//       sameSite: "strict",
-//       maxAge: COOKIE_EXPIRE_MS,
-//     });
-
-//     const userResponse = user.toObject();
-//     delete userResponse.__v;
-//     delete userResponse.otp;
-
-//     return res.status(200).json({
-//       issuccess: true,
-//       verified: true,
-//       switchArtisan: false,
-//       languageCode: "en", // ✅ default safety
-//       user: userResponse,
-//       message: "OTP verified successfully. User logged in.",
-//     });
-//   } catch (err) {
-//     console.error("OTP verification error:", err);
-//     return res.status(500).json({ error: "Internal server error" });
-//   }
-// };
 const verifyOtp = async (req, res) => {
-  const { mobile_number, otp, languageCode, latitude, longitude } = req.body;
+  const {
+    mobile_number,
+    otp,
+    languageCode,
+    latitude,
+    longitude,
+    pushNotificationToken,
+  } = req.body;
 
   console.log("➡ latitude:", latitude);
   console.log("➡ longitude:", longitude);
+  console.log("➡ pushNotificationToken:", pushNotificationToken);
 
   if (!mobile_number || !otp) {
     return res.status(400).json({
@@ -298,6 +166,15 @@ const verifyOtp = async (req, res) => {
     );
 
     user.token = token;
+
+    // 🔹 Save latest push notification token
+    if (
+      pushNotificationToken &&
+      pushNotificationToken !== user.pushNotificationToken
+    ) {
+      user.pushNotificationToken = pushNotificationToken;
+    }
+
     await user.save();
 
     res.cookie("auth_token", token, {
@@ -311,6 +188,29 @@ const verifyOtp = async (req, res) => {
     delete userResponse.__v;
     delete userResponse.otp;
 
+    // 🔔 Send login push notification
+    const targetToken = pushNotificationToken || user.pushNotificationToken;
+
+    if (targetToken) {
+      const title = "Login Successful";
+      const body = "You have logged in successfully.";
+
+      const payloadData = {
+        type: "LOGIN_SUCCESS",
+        userId: user._id.toString(),
+      };
+
+      await sendPushNotification(
+        targetToken,
+        title,
+        body,
+        payloadData,
+        null,
+        [],
+        1
+      );
+    }
+
     return res.status(200).json({
       issuccess: true,
       verified: true,
@@ -318,6 +218,7 @@ const verifyOtp = async (req, res) => {
       latitude,
       longitude,
       user: userResponse,
+      pushNotificationToken,
       languageCode,
       message: "OTP verified successfully. User logged in.",
     });

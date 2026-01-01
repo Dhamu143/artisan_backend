@@ -77,52 +77,6 @@ const enrichUserWithCategoryData = (user) => {
   return enrichedUser;
 };
 
-//   UPDATE USER BY ID
-// const updateUserById = async (req, res) => {
-//   const targetUserId = req.params.userId;
-//   const loggedInUserId = req.user?.userId;
-
-//   if (!targetUserId) {
-//     return res.status(400).json({ error: "User ID is required in URL." });
-//   }
-
-//   if (targetUserId !== loggedInUserId) {
-//     return res
-//       .status(403)
-//       .json({ error: "Forbidden: You can only update your own profile." });
-//   }
-//   const updates = req.body;
-//   console.log("updates", updates);
-//   try {
-//     const user = await User.findById(targetUserId);
-
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found." });
-//     }
-
-//     deepMerge(user, updates);
-
-//     await user.save();
-
-//     let updatedUser = user.toObject();
-//     delete updatedUser.otp;
-//     delete updatedUser.__v;
-
-//     updatedUser = enrichUserWithCategoryData(updatedUser);
-
-//     return res.status(200).json({
-//       message: "User data updated successfully.",
-//       issuccess: true,
-//       user: updatedUser,
-//     });
-//   } catch (error) {
-//     console.error("Error updating user data:", error);
-//     return res.status(500).json({
-//       error: "Internal server error while updating user data.",
-//     });
-//   }
-// };
-
 const updateUserById = async (req, res) => {
   const targetUserId = req.params.userId;
 
@@ -163,43 +117,7 @@ const updateUserById = async (req, res) => {
   }
 };
 
-//   GET USER BY ID
-// const getUserById = async (req, res) => {
-//   const targetUserId = req.params.userId;
-//   const loggedInUserId = req.user?.userId || null;
 
-//   if (!targetUserId) {
-//     return res.status(400).json({ error: "User ID is required in URL." });
-//   }
-//   if (targetUserId !== loggedInUserId) {
-//     return res.status(403).json({
-//       error: "Forbidden: You are only authorized to view your own profile.",
-//       issuccess: false,
-//     });
-//   }
-
-//   try {
-//     const user = await User.findById(targetUserId).select("-otp -__v");
-
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found." });
-//     }
-
-//     const enrichedUser = enrichUserWithCategoryData(user);
-
-//     return res.status(200).json({
-//       message: "User data retrieved successfully.",
-//       user: enrichedUser,
-//       userId: loggedInUserId,
-//       issuccess: true,
-//     });
-//   } catch (error) {
-//     console.error("Error retrieving user:", error);
-//     return res.status(500).json({
-//       error: "Internal server error while retrieving user data.",
-//     });
-//   }
-// };
 const getUserById = async (req, res) => {
   const targetUserId = req.params.userId;
 
@@ -229,7 +147,6 @@ const getUserById = async (req, res) => {
   }
 };
 
-// DELETE USER BY ID (PUBLIC ADMIN DELETE)
 const deleteUserById = async (req, res) => {
   const targetUserId = req.params.userId;
 
@@ -252,125 +169,7 @@ const deleteUserById = async (req, res) => {
     });
   }
 };
-// GET ALL USERS
-
-// const getAllUsers = async (req, res) => {
-//   try {
-//     const page =
-//       Number(req.query["params[page]"]) || Number(req.query.page) || 1;
-//     const limit =
-//       Number(req.query["params[limit]"]) || Number(req.query.limit) || 10;
-
-//     const skip = (page - 1) * limit;
-
-//     const gender = req.query["params[gender]"] || req.query.gender;
-//     const categoryId = req.query["params[categoryId]"] || req.query.categoryId;
-//     const subCategoryId =
-//       req.query["params[subCategoryId]"] || req.query.subCategoryId;
-
-//     const isAuthenticat =
-//       req.query["params[isAuthenticat]"] || req.query.isAuthenticat;
-
-//     const findQuery = {};
-
-//     if (gender) findQuery.gender = gender;
-//     if (categoryId) findQuery.categoryId = categoryId;
-//     if (subCategoryId) findQuery.subCategoryId = subCategoryId;
-
-//     if (isAuthenticat === "true") findQuery.isAuthenticat = true;
-//     if (isAuthenticat === "false") findQuery.isAuthenticat = false;
-
-//     const totalUsers = await User.countDocuments(findQuery);
-
-//     const users = await User.find(findQuery)
-//       .select("-otp -__v -password")
-//       .skip(skip)
-//       .limit(limit)
-//       .sort({ createdAt: -1 });
-
-//     const enrichedUsers = users.map((u) => enrichUserWithCategoryData(u));
-
-//     return res.status(200).json({
-//       message: "All user data retrieved successfully.",
-//       issuccess: true,
-//       users: enrichedUsers,
-//       totalUsers,
-//       totalPages: Math.ceil(totalUsers / limit),
-//       page,
-//     });
-//   } catch (error) {
-//     console.error("Error retrieving all users:", error);
-//     return res.status(500).json({
-//       error: "Internal server error while retrieving all user data.",
-//     });
-//   }
-// };
-
-// const getAllUsers = async (req, res) => {
-//   try {
-//     const page =
-//       Number(req.query["params[page]"]) || Number(req.query.page) || 1;
-//     const limit =
-//       Number(req.query["params[limit]"]) || Number(req.query.limit) || 10;
-
-//     const skip = (page - 1) * limit;
-
-//     const gender = req.query["params[gender]"] || req.query.gender;
-//     const categoryId = req.query["params[categoryId]"] || req.query.categoryId;
-//     const subCategoryId =
-//       req.query["params[subCategoryId]"] || req.query.subCategoryId;
-
-//     const isAuthenticat =
-//       req.query["params[isAuthenticat]"] || req.query.isAuthenticat;
-
-//     // 🔍 SEARCH
-//     const search = req.query["params[search]"] || req.query.search || "";
-
-//     const findQuery = {};
-
-//     // Filters
-//     if (gender) findQuery.gender = gender;
-//     if (categoryId) findQuery.categoryId = categoryId;
-//     if (subCategoryId) findQuery.subCategoryId = subCategoryId;
-
-//     if (isAuthenticat === "true") findQuery.isAuthenticat = true;
-//     if (isAuthenticat === "false") findQuery.isAuthenticat = false;
-
-//     // 🔍 Search logic
-//     if (search) {
-//       findQuery.$or = [
-//         { name: { $regex: search, $options: "i" } },
-//         { email: { $regex: search, $options: "i" } },
-//         { mobile_number: { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     const totalUsers = await User.countDocuments(findQuery);
-
-//     const users = await User.find(findQuery)
-//       .select("-otp -__v -password")
-//       .skip(skip)
-//       .limit(limit)
-//       .sort({ createdAt: -1 });
-
-//     const enrichedUsers = users.map((u) => enrichUserWithCategoryData(u));
-
-//     return res.status(200).json({
-//       message: "All user data retrieved successfully.",
-//       issuccess: true,
-//       users: enrichedUsers,
-//       totalUsers,
-//       totalPages: Math.ceil(totalUsers / limit),
-//       page,
-//     });
-//   } catch (error) {
-//     console.error("Error retrieving all users:", error);
-//     return res.status(500).json({
-//       error: "Internal server error while retrieving all user data.",
-//     });
-//   }
-// };
-
+  
 const getAllUsers = async (req, res) => {
   try {
     const page =
@@ -396,7 +195,6 @@ const getAllUsers = async (req, res) => {
 
     const findQuery = {};
 
-    // ✅ Filters
     if (gender) findQuery.gender = gender;
     if (categoryId) findQuery.categoryId = categoryId;
     if (subCategoryId) findQuery.subCategoryId = subCategoryId;
@@ -477,7 +275,7 @@ const getUserIdAndName = async (req, res) => {
     const totalUsers = await User.countDocuments(findQuery);
 
     const users = await User.find(findQuery)
-      .select("_id name") // only id + name
+      .select("_id name")
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });

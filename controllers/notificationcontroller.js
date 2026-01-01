@@ -8,65 +8,6 @@ const safeStringifyData = (data = {}) => {
   }, {});
 };
 
-// exports.sendPushNotification = async (
-//   token,
-//   title,
-//   body,
-//   data = {},
-//   tag = null,
-//   messageHistory = [],
-//   unreadCount = 1,
-//   findArtisan = false
-// ) => {
-//   try {
-//     if (!token) return;
-
-//     console.log("👉 Sending FCM to Token:", token);
-
-//     const combinedData = {
-//       ...data,
-//       messageHistory: JSON.stringify(messageHistory),
-//       unreadCount: String(unreadCount),
-//       findArtisan: findArtisan ? "true" : "false",
-//     };
-
-//     const safeData = safeStringifyData(combinedData);
-
-//     const messagePayload = {
-//       token,
-//       notification: { title, body },
-//       data: safeData,
-//     };
-
-//     if (tag) {
-//       messagePayload.android = {
-//         notification: {
-//           tag: tag,
-//           clickAction: "CHAT_ACTIVITY",
-//           notificationCount: Number(unreadCount),
-//         },
-//       };
-//     }
-
-//     // iOS Config
-//     if (tag) {
-//       messagePayload.apns = {
-//         payload: {
-//           aps: {
-//             "thread-id": tag,
-//             badge: Number(unreadCount),
-//           },
-//         },
-//       };
-//     }
-
-//     await admin.messaging().send(messagePayload);
-//     console.log(`🔔 FCM Sent | Tag: ${tag} | Count: ${unreadCount}`);
-//   } catch (err) {
-//     console.error("❌ FCM Error:", err.message);
-//   }
-// };
-
 exports.sendPushNotification = async (
   token,
   title,
