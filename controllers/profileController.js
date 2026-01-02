@@ -1,60 +1,3 @@
-// const ProfileView = require("../models/profileViewModel");
-// const mongoose = require("mongoose");
-
-// exports.trackProfileView = async (req, res) => {
-//   try {
-//     const { profileUserId } = req.body;
-//     const viewerUserId = req.user.userId;
-
-//     console.log("PROFILE:", profileUserId);
-//     console.log("VIEWER:", viewerUserId);
-
-//     if (profileUserId === viewerUserId) {
-//       return res.status(200).json({ viewed: false });
-//     }
-
-//     const result = await ProfileView.updateOne(
-//       {
-//         profileUserId: new mongoose.Types.ObjectId(profileUserId),
-//         viewerUserId: new mongoose.Types.ObjectId(viewerUserId),
-//       },
-//       { $setOnInsert: {} },
-//       { upsert: true }
-//     );
-
-//     if (result.matchedCount > 0) {
-//       return res.status(200).json({ viewed: false });
-//     }
-
-//     return res.status(200).json({
-//       viewed: true,
-//       issuccess: true,
-//       message: "Profile view counted",
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     return res.status(500).json({ message: "Server error" });
-//   }
-// };
-
-// exports.getProfileViewCount = async (req, res) => {
-//   try {
-//     const { profileUserId } = req.params;
-
-//     const count = await ProfileView.countDocuments({
-//       profileUserId: new mongoose.Types.ObjectId(profileUserId),
-//     });
-
-//     return res.status(200).json({
-//       profileUserId,
-//       totalViews: count,
-//       issuccess: true,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({ message: "Server error" });
-//   }
-// };
-
 const mongoose = require("mongoose");
 const ProfileView = require("../models/profileViewModel");
 const User = require("../models/userModel");
@@ -63,58 +6,69 @@ const {
 } = require("../controllers/notificationcontroller");
 
 exports.trackProfileView = async (req, res) => {
+  console.log("\n================ PROFILE VIEW START ================");
+
   try {
     const { profileUserId } = req.body;
-    const viewerUserId = req.user.userId;
+    const viewerUserId = req.user?.userId;
 
-    console.log("---- 👁 PROFILE VIEW EVENT ----");
-    console.log("Profile Owner (profileUserId):", profileUserId);
-    console.log("Viewer (viewerUserId):", viewerUserId);
+    console.log("📥 Incoming Request Body:", req.body);
+    console.log("👤 Viewer User ID (from token):", viewerUserId);
+
+    if (!profileUserId || !viewerUserId) {
+      console.log("❌ Missing profileUserId or viewerUserId");
+      return res.status(400).json({ message: "Invalid request" });
+    }
 
     // Prevent self-view
     if (profileUserId === viewerUserId) {
-      console.log("⚠️ Skipping self profile view");
+      console.log("⚠️ Self profile view detected — skipping");
       return res.status(200).json({ viewed: false });
     }
 
-    // Insert only if not exists
+    console.log("🔍 Checking existing profile view...");
+
     const result = await ProfileView.updateOne(
       {
         profileUserId: new mongoose.Types.ObjectId(profileUserId),
         viewerUserId: new mongoose.Types.ObjectId(viewerUserId),
       },
-      { $setOnInsert: {} },
+      { $setOnInsert: { createdAt: new Date() } },
       { upsert: true }
     );
 
-    console.log("Mongo Update Result:", result);
+    console.log("🗄 MongoDB updateOne result:", {
+      acknowledged: result.acknowledged,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      upsertedId: result.upsertedId,
+    });
 
-    // If already viewed before → no push notification
+    // Already viewed
     if (result.matchedCount > 0) {
-      console.log("ℹ️ Profile already viewed earlier — no notification sent");
+      console.log("ℹ️ Profile already viewed earlier — no notification");
+      console.log("================ PROFILE VIEW END =================\n");
       return res.status(200).json({ viewed: false });
     }
 
-    console.log("✔ First time viewing profile — logging & notifying");
+    console.log("✅ First-time profile view detected");
 
-    // Fetch viewer + profile owner
+    // Fetch users
+    console.log("📡 Fetching viewer & profile owner data...");
     const viewer = await User.findById(viewerUserId).select("name");
     const profileUser = await User.findById(profileUserId).select(
       "name pushNotificationToken"
     );
 
-    console.log("Viewer Name:", viewer?.name || "Unknown");
-    console.log("Profile Owner Name:", profileUser?.name || "Unknown");
-    console.log(
-      "Profile Owner FCM Token:",
-      profileUser?.pushNotificationToken
-        ? profileUser.pushNotificationToken.slice(0, 15) + "..."
-        : "NONE"
-    );
+    console.log("👀 Viewer:", viewer);
+    console.log("🧑 Profile Owner:", {
+      name: profileUser?.name,
+      hasPushToken: Boolean(profileUser?.pushNotificationToken),
+    });
 
-    // Send push notification only if FCM token exists
+    // Push notification
     if (profileUser?.pushNotificationToken) {
-      const title = "viewed profile 👀";
+      const title = "Profile viewed 👀";
       const body = `${viewer?.name || "Someone"} viewed your profile`;
 
       const payloadData = {
@@ -123,7 +77,8 @@ exports.trackProfileView = async (req, res) => {
         viewerUserId: viewerUserId.toString(),
       };
 
-      console.log("📨 Preparing push notification payload:", payloadData);
+      console.log("📨 Sending push notification...");
+      console.log("📦 Payload:", payloadData);
 
       await sendPushNotification(
         profileUser.pushNotificationToken,
@@ -135,12 +90,13 @@ exports.trackProfileView = async (req, res) => {
         1
       );
 
-      console.log("🔔 Push Notification Sent Successfully");
+      console.log("🔔 Push notification sent successfully");
     } else {
-      console.log("⚠️ No push token — notification skipped");
+      console.log("⚠️ No pushNotificationToken — notification skipped");
     }
 
-    console.log("✅ Profile view recorded successfully\n");
+    console.log("🎉 Profile view recorded successfully");
+    console.log("================ PROFILE VIEW END =================\n");
 
     return res.status(200).json({
       viewed: true,
@@ -148,22 +104,31 @@ exports.trackProfileView = async (req, res) => {
       message: "Profile view counted",
     });
   } catch (error) {
-    console.error("❌ Profile view error:", error);
+    console.error("❌ PROFILE VIEW ERROR:", error);
+    console.log("================ PROFILE VIEW FAILED ===============\n");
     return res.status(500).json({ message: "Server error" });
   }
 };
+
 exports.getProfileViewCount = async (req, res) => {
+  console.log("\n================ FETCH VIEW COUNT =================");
+
   try {
     const { profileUserId } = req.params;
 
-    console.log("---- 📊 FETCH PROFILE VIEW COUNT ----");
-    console.log("Profile User ID:", profileUserId);
+    console.log("📥 Params:", req.params);
+
+    if (!profileUserId) {
+      console.log("❌ Missing profileUserId");
+      return res.status(400).json({ message: "Invalid request" });
+    }
 
     const count = await ProfileView.countDocuments({
       profileUserId: new mongoose.Types.ObjectId(profileUserId),
     });
 
-    console.log("Total Views:", count);
+    console.log("📊 Total Profile Views:", count);
+    console.log("================ FETCH VIEW COUNT END =============\n");
 
     return res.status(200).json({
       profileUserId,
@@ -171,7 +136,8 @@ exports.getProfileViewCount = async (req, res) => {
       issuccess: true,
     });
   } catch (error) {
-    console.error("❌ Profile view count error:", error);
+    console.error("❌ PROFILE VIEW COUNT ERROR:", error);
+    console.log("================ FETCH VIEW COUNT FAILED ===========\n");
     return res.status(500).json({ message: "Server error" });
   }
 };
