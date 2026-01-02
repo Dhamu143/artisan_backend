@@ -719,63 +719,6 @@ exports.getArtisanById = async (req, res) => {
 //   }
 // };
 
-exports.toggleArtisanAuthentication = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { isAuthenticat } = req.body;
-
-    const artisan = await User.findByIdAndUpdate(
-      id,
-      { isAuthenticat },
-      { new: true }
-    ).select("-password -otp -__v");
-
-    if (!artisan) {
-      return res.status(404).json({
-        isSuccess: false,
-        message: "Artisan not found",
-      });
-    }
-
-    // 🔔 PUSH NOTIFICATION
-    if (artisan.pushNotificationToken) {
-      const title = isAuthenticat ? "Profile Verified" : "Verification Removed";
-
-      const body = isAuthenticat
-        ? "Your profile has been verified by admin."
-        : "Your profile verification has been removed.";
-
-      const payload = {
-        type: "ADMIN_AUTH_UPDATE",
-        userId: artisan._id.toString(),
-        status: isAuthenticat ? "verified" : "unverified",
-      };
-
-      await sendPushNotification(
-        artisan.pushNotificationToken,
-        title,
-        body,
-        payload,
-        null,
-        [],
-        1
-      );
-    }
-
-    return res.status(200).json({
-      isSuccess: true,
-      message: `Artisan authentication set to ${isAuthenticat}`,
-      artisan,
-    });
-  } catch (error) {
-    console.error("toggleArtisanAuthentication error:", error);
-    return res.status(500).json({
-      isSuccess: false,
-      message: "Server Error",
-    });
-  }
-};
-
 // exports.toggleArtisanPremium = async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -801,59 +744,6 @@ exports.toggleArtisanAuthentication = async (req, res) => {
 //     res.status(500).json({ message: "Server Error" });
 //   }
 // };
-
-exports.toggleArtisanPremium = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { isPremium } = req.body;
-
-    const artisan = await User.findByIdAndUpdate(
-      id,
-      { isPremium },
-      { new: true }
-    ).select("-password -otp -__v");
-
-    if (!artisan) {
-      return res.status(404).json({ message: "Artisan not found" });
-    }
-
-    // 🔔 PUSH NOTIFICATION
-    if (artisan.pushNotificationToken) {
-      const title = isPremium
-        ? "Premium Membership Activated"
-        : "Premium Membership Removed";
-
-      const body = isPremium
-        ? "Your profile has been upgraded to Premium."
-        : "Your Premium membership has been removed.";
-
-      const payload = {
-        type: "ADMIN_PREMIUM_UPDATE",
-        userId: artisan._id.toString(),
-        status: isPremium ? "premium" : "basic",
-      };
-
-      await sendPushNotification(
-        artisan.pushNotificationToken,
-        title,
-        body,
-        payload,
-        null,
-        [],
-        1
-      );
-    }
-
-    res.json({
-      success: true,
-      message: `Artisan premium status updated to ${isPremium}`,
-      artisan,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
 
 // exports.toggleArtisanAvailability = async (req, res) => {
 //   try {
@@ -886,11 +776,127 @@ exports.toggleArtisanPremium = async (req, res) => {
 //     });
 //   }
 // };
+const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
+
+// ==========================================
+// VERIFY / UNVERIFY
+// ==========================================
+exports.toggleArtisanAuthentication = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { isAuthenticat } = req.body;
+
+    console.log("RAW isAuthenticat:", isAuthenticat, typeof isAuthenticat);
+
+    isAuthenticat = toBool(isAuthenticat);
+
+    const artisan = await User.findByIdAndUpdate(
+      id,
+      { isAuthenticat },
+      { new: true }
+    ).select("-password -otp -__v");
+
+    if (!artisan) {
+      return res.status(404).json({
+        isSuccess: false,
+        message: "Artisan not found",
+      });
+    }
+
+    if (artisan.pushNotificationToken) {
+      await sendPushNotification(
+        artisan.pushNotificationToken,
+        isAuthenticat ? "Profile Verified" : "Verification Removed",
+        isAuthenticat
+          ? "Your profile has been verified by admin."
+          : "Your profile verification has been removed.",
+        {
+          type: "ADMIN_AUTH_UPDATE",
+          userId: artisan._id.toString(),
+          status: isAuthenticat ? "verified" : "unverified",
+        },
+        null,
+        [],
+        1
+      );
+    }
+
+    return res.status(200).json({
+      isSuccess: true,
+      message: `Artisan authentication set to ${isAuthenticat}`,
+      artisan,
+    });
+  } catch (error) {
+    console.error("toggleArtisanAuthentication error:", error);
+    return res.status(500).json({
+      isSuccess: false,
+      message: "Server Error",
+    });
+  }
+};
+
+exports.toggleArtisanPremium = async (req, res) => {
+  try {
+    console.log("➡️ toggleArtisanPremium API hit");
+
+    const { id } = req.params;
+    let { isPremium } = req.body;
+
+    console.log("RAW isPremium:", isPremium, typeof isPremium);
+
+    isPremium = toBool(isPremium);
+
+    console.log("NORMALIZED isPremium:", isPremium, typeof isPremium);
+
+    const artisan = await User.findByIdAndUpdate(
+      id,
+      { isPremium },
+      { new: true }
+    ).select("-password -otp -__v");
+
+    if (!artisan) {
+      return res.status(404).json({ message: "Artisan not found" });
+    }
+
+    if (artisan.pushNotificationToken) {
+      await sendPushNotification(
+        artisan.pushNotificationToken,
+        isPremium
+          ? "Premium Membership Activated"
+          : "Premium Membership Removed",
+        isPremium
+          ? "Your profile has been upgraded to Premium."
+          : "Your Premium membership has been removed.",
+        {
+          type: "ADMIN_PREMIUM_UPDATE",
+          userId: artisan._id.toString(),
+          status: isPremium ? "premium" : "basic",
+        },
+        null,
+        [],
+        1
+      );
+    }
+
+    res.json({
+      success: true,
+      message: `Artisan premium status updated to ${isPremium}`,
+      artisan,
+    });
+  } catch (err) {
+    console.error("🔥 toggleArtisanPremium Error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
 
 exports.toggleArtisanAvailability = async (req, res) => {
   try {
     const { id } = req.params;
-    const { isAvailable } = req.body;
+    let { isAvailable } = req.body;
+
+    console.log("RAW isAvailable:", isAvailable, typeof isAvailable);
+
+    isAvailable = toBool(isAvailable);
 
     const artisan = await User.findByIdAndUpdate(
       id,
@@ -905,27 +911,18 @@ exports.toggleArtisanAvailability = async (req, res) => {
       });
     }
 
-    // 🔔 PUSH NOTIFICATION
     if (artisan.pushNotificationToken) {
-      const title = isAvailable
-        ? "You are now Available"
-        : "You are now Unavailable";
-
-      const body = isAvailable
-        ? "Customers can now see your profile."
-        : "Your profile is now hidden from customers.";
-
-      const payload = {
-        type: "ADMIN_AVAILABILITY_UPDATE",
-        userId: artisan._id.toString(),
-        status: isAvailable ? "available" : "unavailable",
-      };
-
       await sendPushNotification(
         artisan.pushNotificationToken,
-        title,
-        body,
-        payload,
+        isAvailable ? "You are now Available" : "You are now Unavailable",
+        isAvailable
+          ? "Customers can now see your profile."
+          : "Your profile is now hidden from customers.",
+        {
+          type: "ADMIN_AVAILABILITY_UPDATE",
+          userId: artisan._id.toString(),
+          status: isAvailable ? "available" : "unavailable",
+        },
         null,
         [],
         1
