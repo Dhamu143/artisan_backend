@@ -125,6 +125,8 @@ const resendOtp = async (req, res) => {
 };
 
 const verifyOtp = async (req, res) => {
+  console.log("\n================ OTP VERIFY START ================");
+
   const {
     mobile_number,
     otp,
@@ -134,31 +136,52 @@ const verifyOtp = async (req, res) => {
     pushNotificationToken,
   } = req.body;
 
-  console.log("➡ latitude:", latitude);
-  console.log("➡ longitude:", longitude);
-  console.log("➡ pushNotificationToken:", pushNotificationToken);
+  console.log("📥 Request Body:", {
+    mobile_number,
+    otpProvided: otp ? "YES" : "NO",
+    languageCode,
+    latitude,
+    longitude,
+    hasPushToken: Boolean(pushNotificationToken),
+  });
 
   if (!mobile_number || !otp) {
+    console.log("❌ Missing mobile number or OTP");
     return res.status(400).json({
       error: "Mobile number and OTP are required",
     });
   }
 
   try {
+    console.log("🔐 Verifying OTP for:", mobile_number);
+
     const isOtpValid = await verifyStoredOTP(mobile_number, otp);
+
+    console.log("🧾 OTP validation result:", isOtpValid);
+
     if (!isOtpValid) {
+      console.log("⏰ OTP expired or invalid");
       return res.status(401).json({
         error: "Your OTP has expired. Kindly generate a new OTP.",
       });
     }
 
+    console.log("👤 Fetching user from DB...");
     const user = await User.findOne({ mobile_number });
+
     if (!user) {
+      console.log("❌ User not found for mobile:", mobile_number);
       return res.status(404).json({ error: "User not found" });
     }
 
+    console.log("✅ User found:", {
+      userId: user._id,
+      isVerified: user.isVerified,
+    });
+
     user.isVerified = true;
 
+    console.log("🔑 Generating JWT token...");
     const token = jwt.sign(
       { userId: user._id, mobile: user.mobile_number },
       JWT_SECRET,
@@ -167,16 +190,22 @@ const verifyOtp = async (req, res) => {
 
     user.token = token;
 
-    // 🔹 Save latest push notification token
+    // Save latest push notification token
     if (
       pushNotificationToken &&
       pushNotificationToken !== user.pushNotificationToken
     ) {
+      console.log("🔄 Updating push notification token");
       user.pushNotificationToken = pushNotificationToken;
+    } else {
+      console.log("ℹ️ Push token unchanged or not provided");
     }
 
+    console.log("💾 Saving user data...");
     await user.save();
+    console.log("✅ User saved successfully");
 
+    console.log("🍪 Setting auth cookie");
     res.cookie("auth_token", token, {
       httpOnly: true,
       secure: false,
@@ -188,8 +217,10 @@ const verifyOtp = async (req, res) => {
     delete userResponse.__v;
     delete userResponse.otp;
 
-    // 🔔 Send login push notification
+    // Send login push notification
     const targetToken = pushNotificationToken || user.pushNotificationToken;
+
+    console.log("📲 Target push token exists:", Boolean(targetToken));
 
     if (targetToken) {
       const title = "Login Successful";
@@ -200,6 +231,9 @@ const verifyOtp = async (req, res) => {
         userId: user._id.toString(),
       };
 
+      console.log("📨 Sending login push notification");
+      console.log("📦 Payload:", payloadData);
+
       await sendPushNotification(
         targetToken,
         title,
@@ -209,7 +243,14 @@ const verifyOtp = async (req, res) => {
         [],
         1
       );
+
+      console.log("🔔 Login push notification sent");
+    } else {
+      console.log("⚠️ No push token — login notification skipped");
     }
+
+    console.log("🎉 OTP verification & login successful");
+    console.log("================ OTP VERIFY END =================\n");
 
     return res.status(200).json({
       issuccess: true,
@@ -223,7 +264,8 @@ const verifyOtp = async (req, res) => {
       message: "OTP verified successfully. User logged in.",
     });
   } catch (err) {
-    console.error("OTP verification error:", err);
+    console.error("❌ OTP VERIFICATION ERROR:", err);
+    console.log("================ OTP VERIFY FAILED ===============\n");
     return res.status(500).json({ error: "Internal server error" });
   }
 };
