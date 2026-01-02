@@ -7,7 +7,14 @@ const {
   sendPushNotification,
 } = require("../controllers/notificationcontroller");
 
-const JWT_SECRET = process.env.JWT_SECRET || "SuperSecretKey";
+// const JWT_SECRET = process.env.JWT_SECRET || "SuperSecretKey";
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET is not set");
+  process.exit(1);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
 const TOKEN_EXPIRE_TIME = "365d";
 const COOKIE_EXPIRE_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 
@@ -187,6 +194,9 @@ const verifyOtp = async (req, res) => {
       JWT_SECRET,
       { expiresIn: TOKEN_EXPIRE_TIME }
     );
+
+    // ✅ ADD THIS
+    console.log("🔐 JWT Token:", token);
 
     user.token = token;
 
