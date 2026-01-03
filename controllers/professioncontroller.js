@@ -791,22 +791,6 @@ exports.getArtisans = async (req, res) => {
   }
 };
 
-exports.toggleAdminApproval = async (req, res) => {
-  try {
-    const { isAdminApproved } = req.body;
-
-    const artisan = await User.findByIdAndUpdate(
-      req.params.id,
-      { isAdminApproved },
-      { new: true }
-    );
-
-    res.json({ artisan });
-  } catch (err) {
-    res.status(500).json({ message: "Failed to update approval status" });
-  }
-};
-
 exports.getArtisanById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -837,8 +821,68 @@ exports.getArtisanById = async (req, res) => {
     });
   }
 };
+
 const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
 
+exports.toggleAdminApproval = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { isAdminApproved } = req.body;
+
+    console.log(
+      "RAW isAdminApproved:",
+      isAdminApproved,
+      typeof isAdminApproved
+    );
+
+    isAdminApproved = toBool(isAdminApproved);
+
+    const artisan = await User.findByIdAndUpdate(
+      id,
+      { isAdminApproved },
+      { new: true }
+    ).select("-password -otp -__v");
+
+    if (!artisan) {
+      return res.status(404).json({
+        isSuccess: false,
+        message: "Artisan not found",
+      });
+    }
+
+    // ----- SEND PUSH NOTIFICATION -----
+    if (artisan.pushNotificationToken) {
+      await sendPushNotification(
+        artisan.pushNotificationToken,
+        isAdminApproved
+          ? "Profile Approved by Admin"
+          : "Admin Approval Revoked",
+        isAdminApproved
+          ? "Your profile has been approved and is now visible to users."
+          : "Your profile approval has been revoked by admin.",
+        {
+          type: "ADMIN_AUTH_UPDATE",
+          userId: artisan._id.toString(),
+          status: isAdminApproved ? "approved" : "revoked",
+        },
+        null,
+        [],
+        1
+      );
+    }
+
+    return res.status(200).json({
+      isSuccess: true,
+      message: `Admin approval set to ${isAdminApproved}`,
+      artisan,
+    });
+  } catch (err) {
+    console.error("toggleAdminApproval error:", err);
+    return res.status(500).json({
+      message: "Failed to update approval status",
+    });
+  }
+};
 exports.toggleArtisanAuthentication = async (req, res) => {
   try {
     const { id } = req.params;

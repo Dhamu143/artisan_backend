@@ -6,7 +6,7 @@ const generateToken = (id) => {
     expiresIn: "30d",
   });
 };
-console.log("Signing with Secret:", process.env.JWT_SECRET);
+// console.log("Signing with Secret:", process.env.JWT_SECRET);
 
 exports.registerAdmin = async (req, res) => {
   const { email, password } = req.body;
