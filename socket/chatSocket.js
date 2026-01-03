@@ -198,7 +198,6 @@ module.exports = (io) => {
       console.log("--- 📨 MESSAGE FLOW END ---\n");
     });
 
-    // --- 5. Chat Open/Close Events ---
     socket.on("chat:open", async ({ me, chatWith }) => {
       if (!me || !chatWith) return;
 
@@ -206,7 +205,6 @@ module.exports = (io) => {
 
       await markChatMessagesSeen({ me, chatWith });
 
-      // Notify the OTHER user that I am reading their chat
       const senderSocketId = onlineUsers.get(chatWith.toString());
       if (senderSocketId) {
         io.to(senderSocketId).emit("chat:read", { chatWith: me });
@@ -221,7 +219,6 @@ module.exports = (io) => {
       logEvent("📕", "Chat Closed", me);
     });
 
-    // --- 6. Manual Seen Event ---
     socket.on("message:seen", async ({ messageId, chatWith }) => {
       try {
         await updateMessageStatus({ messageId, status: "seen" });
@@ -242,7 +239,7 @@ module.exports = (io) => {
     socket.on("user:offline", async (userId) => {
       if (!userId) return;
       onlineUsers.delete(userId.toString());
-      await setOffline(userId); // Assuming you have this controller function
+      await setOffline(userId);
       io.emit("presence:update", {
         userId,
         status: "offline",
@@ -250,7 +247,6 @@ module.exports = (io) => {
       });
       console.log("🔴 User went offline manually:", userId);
     });
-    // --- 7. Disconnect ---
     socket.on("disconnect", async () => {
       if (!socket.userId) return;
 

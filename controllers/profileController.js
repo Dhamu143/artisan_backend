@@ -66,7 +66,6 @@ exports.trackProfileView = async (req, res) => {
       hasPushToken: Boolean(profileUser?.pushNotificationToken),
     });
 
-    // Push notification
     if (profileUser?.pushNotificationToken) {
       const title = "Profile viewed 👀";
       const body = `${viewer?.name || "Someone"} viewed your profile`;

@@ -36,7 +36,7 @@ function findSubcategoryByNameInJson(name) {
           const foundProf = sub.Professions.find(
             (p) =>
               (p.display_name && p.display_name.toLowerCase() === term) ||
-              (p.englishName && p.englishName.toLowerCase() === term) // Backup check
+              (p.englishName && p.englishName.toLowerCase() === term)
           );
 
           if (foundProf) {
@@ -49,7 +49,6 @@ function findSubcategoryByNameInJson(name) {
   return null;
 }
 
-// ✅ FIXED: Searches inside 'Professions' array for Universal Search
 function findSubcategoryIdsByTerm(term) {
   const ids = [];
   const lowerTerm = term.toLowerCase().trim();
@@ -57,7 +56,6 @@ function findSubcategoryIdsByTerm(term) {
   data.Categories.forEach((cat) => {
     if (cat.Subcategories) {
       cat.Subcategories.forEach((sub) => {
-        // 1. Check Group Name
         if (
           sub.Subcategory_Name &&
           sub.Subcategory_Name.toLowerCase().includes(lowerTerm)
@@ -67,14 +65,13 @@ function findSubcategoryIdsByTerm(term) {
           // For now, let's look for specific professions.
         }
 
-        // 2. Check Professions
         if (sub.Professions) {
           sub.Professions.forEach((p) => {
             if (
               p.display_name &&
               p.display_name.toLowerCase().includes(lowerTerm)
             ) {
-              ids.push(p.id); // Pushes "AA001"
+              ids.push(p.id);
             }
           });
         }
@@ -116,7 +113,6 @@ function generateId() {
 function getFlattenedProfessions(searchTerm = "") {
   const term = searchTerm.toLowerCase().trim();
 
-  // 1. Flatten the data structure
   const flattened = data.Categories.flatMap((category) => {
     const categoryName = category.Category_Name;
     const categoryId = category.id;
@@ -563,6 +559,7 @@ exports.getArtisans = async (req, res) => {
       isPremium,
       isAvailable,
       isOnline,
+      isAdminApproved,
       languageCode,
       page = 1,
       limit = 10,
@@ -573,6 +570,22 @@ exports.getArtisans = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const query = { findArtisan: false };
+
+    if (isAdminApproved === "false") {
+      // When admin wants to see hidden users
+      query.isAdminApproved = false;
+    } else if (isAdminApproved === "true") {
+      // Show only explicitly approved
+      query.isAdminApproved = true;
+    } else {
+      // Default — show:
+      // 1) approved users
+      // 2) legacy users without flag
+      query.$or = [
+        { isAdminApproved: true },
+        { isAdminApproved: { $exists: false } },
+      ];
+    }
 
     if (isAuthenticat !== undefined)
       query.isAuthenticat = isAuthenticat === true || isAuthenticat === "true";
@@ -656,6 +669,23 @@ exports.getArtisans = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+exports.toggleAdminApproval = async (req, res) => {
+  try {
+    const { isAdminApproved } = req.body;
+
+    const artisan = await User.findByIdAndUpdate(
+      req.params.id,
+      { isAdminApproved },
+      { new: true }
+    );
+
+    res.json({ artisan });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update approval status" });
+  }
+};
+
 exports.getArtisanById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -686,101 +716,8 @@ exports.getArtisanById = async (req, res) => {
     });
   }
 };
-
-// exports.toggleArtisanAuthentication = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { isAuthenticat } = req.body;
-
-//     const artisan = await User.findByIdAndUpdate(
-//       id,
-//       { isAuthenticat: isAuthenticat },
-//       { new: true }
-//     ).select("-password -otp -__v");
-
-//     if (!artisan) {
-//       return res.status(404).json({
-//         isSuccess: false,
-//         message: "Artisan not found",
-//       });
-//     }
-
-//     return res.status(200).json({
-//       isSuccess: true,
-//       message: `Artisan authentication set to ${isAuthenticat}`,
-//       artisan,
-//     });
-//   } catch (error) {
-//     console.error("toggleArtisanAuthentication error:", error);
-//     return res.status(500).json({
-//       isSuccess: false,
-//       message: "Server Error",
-//     });
-//   }
-// };
-
-// exports.toggleArtisanPremium = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { isPremium } = req.body;
-
-//     const updatedArtisan = await User.findByIdAndUpdate(
-//       id,
-//       { isPremium: isPremium },
-//       { new: true }
-//     ).select("-password -otp -__v");
-
-//     if (!updatedArtisan) {
-//       return res.status(404).json({ message: "Artisan not found" });
-//     }
-
-//     res.json({
-//       success: true,
-//       message: `Artisan premium status updated to ${isPremium}`,
-//       artisan: updatedArtisan,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: "Server Error" });
-//   }
-// };
-
-// exports.toggleArtisanAvailability = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { isAvailable } = req.body;
-
-//     const artisan = await User.findByIdAndUpdate(
-//       id,
-//       { isAvailable },
-//       { new: true }
-//     ).select("-password -otp -__v");
-
-//     if (!artisan) {
-//       return res.status(404).json({
-//         isSuccess: false,
-//         message: "Artisan not found",
-//       });
-//     }
-
-//     return res.status(200).json({
-//       isSuccess: true,
-//       message: `Artisan availability set to ${isAvailable}`,
-//       artisan,
-//     });
-//   } catch (error) {
-//     console.error("toggleArtisanAvailability error:", error);
-//     return res.status(500).json({
-//       isSuccess: false,
-//       message: "Server Error",
-//     });
-//   }
-// };
 const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
 
-// ==========================================
-// VERIFY / UNVERIFY
-// ==========================================
 exports.toggleArtisanAuthentication = async (req, res) => {
   try {
     const { id } = req.params;

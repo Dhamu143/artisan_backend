@@ -29,7 +29,6 @@ const ratingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Indexes (defined ONCE)
 ratingSchema.index({ rated_by: 1 });
 ratingSchema.index({ rated_to: 1 });
 

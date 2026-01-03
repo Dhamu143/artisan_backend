@@ -30,7 +30,6 @@ const addRating = async (req, res) => {
       return res.status(400).json({ error: "Invalid User ID" });
     }
 
-    // 1. Create rating
     const newRating = await Rating.create({
       rated_by,
       rated_to,
@@ -45,11 +44,9 @@ const addRating = async (req, res) => {
       rating,
     });
 
-    // 2. Update stats
     const stats = await calculateRatingStats(rated_to);
     await User.findByIdAndUpdate(rated_to, stats);
 
-    // 3. Notification users
     const sender = await User.findById(rated_by).select("name");
     const receiver = await User.findById(rated_to).select(
       "pushNotificationToken name"

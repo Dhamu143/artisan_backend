@@ -69,6 +69,7 @@ const userSchema = new mongoose.Schema(
     isPremium: { type: Boolean, default: false },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: null },
+    isAdminApproved: { type: Boolean, default: true },
 
     otp: Object,
     gender: { type: String },

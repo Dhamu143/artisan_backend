@@ -7,7 +7,6 @@ const {
   sendPushNotification,
 } = require("../controllers/notificationcontroller");
 
-// const JWT_SECRET = process.env.JWT_SECRET || "SuperSecretKey";
 if (!process.env.JWT_SECRET) {
   console.error("FATAL: JWT_SECRET is not set");
   process.exit(1);
@@ -195,12 +194,10 @@ const verifyOtp = async (req, res) => {
       { expiresIn: TOKEN_EXPIRE_TIME }
     );
 
-    // ✅ ADD THIS
     console.log("🔐 JWT Token:", token);
 
     user.token = token;
 
-    // Save latest push notification token
     if (
       pushNotificationToken &&
       pushNotificationToken !== user.pushNotificationToken
@@ -227,7 +224,6 @@ const verifyOtp = async (req, res) => {
     delete userResponse.__v;
     delete userResponse.otp;
 
-    // Send login push notification
     const targetToken = pushNotificationToken || user.pushNotificationToken;
 
     console.log("📲 Target push token exists:", Boolean(targetToken));
