@@ -546,8 +546,133 @@ exports.deleteProfession = (req, res) => {
   });
 };
 
+// exports.getArtisans = async (req, res) => {
+//   console.log("\n--- 🚀 API CALLED: getArtisans (JSON-Based Fix) ---");
+//   try {
+//     let {
+//       categoryId,
+//       subCategoryId,
+//       subCategoryName,
+//       city,
+//       businessName,
+//       isAuthenticat,
+//       isPremium,
+//       isAvailable,
+//       isOnline,
+//       isAdminApproved,
+//       languageCode,
+//       page = 1,
+//       limit = 10,
+//     } = req.query;
+
+//     page = Number(page);
+//     limit = Number(limit);
+//     const skip = (page - 1) * limit;
+
+//     const query = { findArtisan: false };
+
+//     const isAdminRequest = req.query.isadmin === "true";
+
+//     if (!isAdminRequest) {
+//       // -------- PUBLIC USERS (APP) --------
+//       // Show only approved or legacy users
+//       query.$or = [
+//         { isAdminApproved: true },
+//         { isAdminApproved: { $exists: false } },
+//       ];
+//     } else {
+//       // -------- ADMIN MODE --------
+//       // Return ALL users (approved + not approved)
+//       if (isAdminApproved === "true") query.isAdminApproved = true;
+//       if (isAdminApproved === "false") query.isAdminApproved = false;
+//     }
+
+//     if (isAuthenticat !== undefined)
+//       query.isAuthenticat = isAuthenticat === true || isAuthenticat === "true";
+//     if (isPremium !== undefined)
+//       query.isPremium = isPremium === true || isPremium === "true";
+//     if (isAvailable !== undefined)
+//       query.isAvailable = isAvailable === true || isAvailable === "true";
+//     if (isOnline !== undefined)
+//       query.isOnline = isOnline === true || isOnline === "true";
+//     if (languageCode) query.languageCode = languageCode;
+
+//     if (categoryId) query.categoryId = { $in: categoryId.split(",") };
+//     if (subCategoryId) query.subCategoryId = { $in: subCategoryId.split(",") };
+
+//     // --- FIX 1: Search Subcategory ID in JSON first ---
+//     if (subCategoryName) {
+//       const targetSub = findSubcategoryByNameInJson(subCategoryName);
+//       if (targetSub) {
+//         query.subCategoryId = targetSub.id; // Search Mongo using the ID we found
+//       } else {
+//         query.subCategoryId = "NON_EXISTENT_ID"; // Force 0 results if name not found
+//       }
+//     }
+
+//     // --- FIX 2: Universal Search using JSON IDs ---
+//     const searchCity = city?.toLowerCase().trim();
+//     const searchBusiness = businessName?.toLowerCase().trim();
+//     const search = searchCity || searchBusiness;
+
+//     const matchStage = { $match: query };
+
+//     if (search) {
+//       // Find ALL subcategory IDs that match the term
+//       const matchingSubIds = findSubcategoryIdsByTerm(search);
+
+//       const searchConditions = [
+//         { city: { $regex: search, $options: "i" } },
+//         { businessName: { $regex: search, $options: "i" } },
+//         { name: { $regex: search, $options: "i" } },
+//         { mobile_number: { $regex: search, $options: "i" } },
+//       ];
+
+//       // Add matching Subcategory IDs to the search
+//       if (matchingSubIds.length > 0) {
+//         searchConditions.push({ subCategoryId: { $in: matchingSubIds } });
+//       }
+
+//       matchStage.$match.$or = searchConditions;
+//     }
+
+//     // --- Pipeline without $lookup ---
+//     const pipeline = [
+//       matchStage,
+//       {
+//         $sort: {
+//           isPremium: -1,
+//           isAuthenticat: -1,
+//           createdAt: -1,
+//         },
+//       },
+//       { $skip: skip },
+//       { $limit: limit },
+//       {
+//         $project: { password: 0, otp: 0, __v: 0 },
+//       },
+//     ];
+
+//     const totalCount = await User.countDocuments(matchStage.$match);
+//     const users = await User.aggregate(pipeline);
+//     const artisans = users.map(enrichUserWithCategoryData);
+
+//     res.json({
+//       issuccess: true,
+//       artisans,
+//       total: totalCount,
+//       totalPages: Math.ceil(totalCount / limit),
+//       page,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server Error" });
+//   }
+// };
+
 exports.getArtisans = async (req, res) => {
-  console.log("\n--- 🚀 API CALLED: getArtisans (JSON-Based Fix) ---");
+  console.log("\n--- 🚀 API CALLED: getArtisans (ADMIN SAFE MODE) ---");
+
   try {
     let {
       categoryId,
@@ -571,86 +696,82 @@ exports.getArtisans = async (req, res) => {
 
     const query = { findArtisan: false };
 
-    if (isAdminApproved === "false") {
-      // When admin wants to see hidden users
-      query.isAdminApproved = false;
-    } else if (isAdminApproved === "true") {
-      // Show only explicitly approved
-      query.isAdminApproved = true;
-    } else {
-      // Default — show:
-      // 1) approved users
-      // 2) legacy users without flag
+    const isAdminRequest = req.query.isadmin === "true";
+
+    // ---------- APPROVAL VISIBILITY LOGIC ----------
+    if (!isAdminRequest) {
+      // PUBLIC MODE → show only approved / legacy
       query.$or = [
         { isAdminApproved: true },
         { isAdminApproved: { $exists: false } },
       ];
+    } else {
+      // ADMIN MODE
+      // If admin applies filter → respect it
+      if (isAdminApproved === "true") {
+        query.isAdminApproved = true;
+      } else if (isAdminApproved === "false") {
+        query.isAdminApproved = false;
+      }
+      // ELSE → no filter → RETURN ALL USERS
+      // (do NOT add any approval condition)
     }
 
+    // ---------- BOOLEAN FILTERS ----------
     if (isAuthenticat !== undefined)
       query.isAuthenticat = isAuthenticat === true || isAuthenticat === "true";
+
     if (isPremium !== undefined)
       query.isPremium = isPremium === true || isPremium === "true";
+
     if (isAvailable !== undefined)
       query.isAvailable = isAvailable === true || isAvailable === "true";
+
     if (isOnline !== undefined)
       query.isOnline = isOnline === true || isOnline === "true";
+
     if (languageCode) query.languageCode = languageCode;
 
+    // ---------- CATEGORY FILTERS ----------
     if (categoryId) query.categoryId = { $in: categoryId.split(",") };
     if (subCategoryId) query.subCategoryId = { $in: subCategoryId.split(",") };
 
-    // --- FIX 1: Search Subcategory ID in JSON first ---
+    // Name-based subcategory search
     if (subCategoryName) {
       const targetSub = findSubcategoryByNameInJson(subCategoryName);
-      if (targetSub) {
-        query.subCategoryId = targetSub.id; // Search Mongo using the ID we found
-      } else {
-        query.subCategoryId = "NON_EXISTENT_ID"; // Force 0 results if name not found
-      }
+      query.subCategoryId = targetSub ? targetSub.id : "NON_EXISTENT_ID";
     }
 
-    // --- FIX 2: Universal Search using JSON IDs ---
+    // ---------- SEARCH LOGIC ----------
     const searchCity = city?.toLowerCase().trim();
-    const searchBusiness = businessName?.toLowerCase().trim();
-    const search = searchCity || searchBusiness;
+    const searchBiz = businessName?.toLowerCase().trim();
+    const search = searchCity || searchBiz;
 
     const matchStage = { $match: query };
 
     if (search) {
-      // Find ALL subcategory IDs that match the term
       const matchingSubIds = findSubcategoryIdsByTerm(search);
 
-      const searchConditions = [
+      const conditions = [
         { city: { $regex: search, $options: "i" } },
         { businessName: { $regex: search, $options: "i" } },
         { name: { $regex: search, $options: "i" } },
         { mobile_number: { $regex: search, $options: "i" } },
       ];
 
-      // Add matching Subcategory IDs to the search
-      if (matchingSubIds.length > 0) {
-        searchConditions.push({ subCategoryId: { $in: matchingSubIds } });
-      }
+      if (matchingSubIds.length > 0)
+        conditions.push({ subCategoryId: { $in: matchingSubIds } });
 
-      matchStage.$match.$or = searchConditions;
+      matchStage.$match.$or = conditions;
     }
 
-    // --- Pipeline without $lookup ---
+    // ---------- PIPELINE ----------
     const pipeline = [
       matchStage,
-      {
-        $sort: {
-          isPremium: -1,
-          isAuthenticat: -1,
-          createdAt: -1,
-        },
-      },
+      { $sort: { isPremium: -1, isAuthenticat: -1, createdAt: -1 } },
       { $skip: skip },
       { $limit: limit },
-      {
-        $project: { password: 0, otp: 0, __v: 0 },
-      },
+      { $project: { password: 0, otp: 0, __v: 0 } },
     ];
 
     const totalCount = await User.countDocuments(matchStage.$match);
