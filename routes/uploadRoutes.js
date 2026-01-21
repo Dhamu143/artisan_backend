@@ -6,7 +6,6 @@ const { uploadToImageKit } = require("../services/storageService");
 const uploadAvatar = createUploader("image", 20 * 1024 * 1024);
 const uploadDocument = createUploader("doc", 30 * 1024 * 1024);
 
-// ---------------- UPLOAD AVATAR ----------------
 router.post(
   "/avatar",
   uploadAvatar.single("file"),
@@ -48,7 +47,6 @@ router.post(
   }
 );
 
-// ---------------- UPLOAD DOCUMENT ----------------
 router.post(
   "/",
   uploadDocument.single("upload"),
@@ -94,7 +92,6 @@ router.post(
   }
 );
 
-// ---------------- ERROR HANDLER ----------------
 router.use((err, req, res, next) => {
   console.error("[UPLOAD ERROR]", err);
 

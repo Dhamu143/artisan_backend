@@ -236,6 +236,7 @@ module.exports = (io) => {
         console.error("❌ SEEN ERROR:", err);
       }
     });
+    
     socket.on("user:offline", async (userId) => {
       if (!userId) return;
       onlineUsers.delete(userId.toString());

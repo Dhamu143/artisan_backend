@@ -6,7 +6,6 @@ const generateToken = (id) => {
     expiresIn: "30d",
   });
 };
-// console.log("Signing with Secret:", process.env.JWT_SECRET);
 
 exports.registerAdmin = async (req, res) => {
   const { email, password } = req.body;
@@ -35,7 +34,6 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-// Login admin
 exports.loginAdmin = async (req, res) => {
   const { email, password } = req.body;
 
@@ -66,7 +64,6 @@ exports.loginAdmin = async (req, res) => {
   }
 };
 
-// Get admin profile
 exports.getAdminProfile = async (req, res) => {
   res.status(200).json({
     _id: req.admin._id,

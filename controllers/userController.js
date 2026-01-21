@@ -203,7 +203,6 @@ const getAllUsers = async (req, res) => {
     if (isAuthenticat === "true") findQuery.isAuthenticat = true;
     if (isAuthenticat === "false") findQuery.isAuthenticat = false;
 
-    // 🔍 Search
     if (search) {
       findQuery.$or = [
         { name: { $regex: search, $options: "i" } },

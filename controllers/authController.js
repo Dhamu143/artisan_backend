@@ -27,7 +27,7 @@ const generateOtp = async (req, res) => {
   console.log("➡ latitude:", latitude);
   console.log("➡ longitude:", longitude);
   if (!mobile_number) {
-    console.warn("⚠ Missing mobile_number in request body");
+    // console.warn("⚠ Missing mobile_number in request body");
     return res.status(400).json({
       issuccess: false,
       error: "Mobile number is required",
@@ -35,7 +35,7 @@ const generateOtp = async (req, res) => {
   }
 
   if (!name) {
-    console.warn("⚠ Missing name in request body");
+    // console.warn("⚠ Missing name in request body");
     return res.status(400).json({
       issuccess: false,
       error: "Name is required",
@@ -62,7 +62,7 @@ const generateOtp = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    console.log("🟢 User upserted:", user?._id || "(new user)");
+    // console.log("🟢 User upserted:", user?._id || "(new user)");
 
     console.log("💾 Storing OTP temporarily…");
     saveOTP(mobile_number, otp);
@@ -70,7 +70,7 @@ const generateOtp = async (req, res) => {
     console.log("📨 Sending OTP via SMS…");
     await sendSMSToMobile(mobile_number, otp);
 
-    console.log("✅ OTP generated and sent successfully");
+    // console.log("✅ OTP generated and sent successfully");
 
     return res.status(200).json({
       issuccess: true,
@@ -83,7 +83,7 @@ const generateOtp = async (req, res) => {
       expiresIn: 30,
     });
   } catch (error) {
-    console.error("🔥 OTP generation error:", error);
+    // console.error("🔥 OTP generation error:", error);
     return res.status(500).json({
       issuccess: false,
       error: "Internal server error",
@@ -131,7 +131,7 @@ const resendOtp = async (req, res) => {
 };
 
 const verifyOtp = async (req, res) => {
-  console.log("\n================ OTP VERIFY START ================");
+  // console.log("\n================ OTP VERIFY START ================");
 
   const {
     mobile_number,
@@ -159,11 +159,11 @@ const verifyOtp = async (req, res) => {
   }
 
   try {
-    console.log("🔐 Verifying OTP for:", mobile_number);
+    // console.log("🔐 Verifying OTP for:", mobile_number);
 
     const isOtpValid = await verifyStoredOTP(mobile_number, otp);
 
-    console.log("🧾 OTP validation result:", isOtpValid);
+    // console.log("🧾 OTP validation result:", isOtpValid);
 
     if (!isOtpValid) {
       console.log("⏰ OTP expired or invalid");
@@ -172,11 +172,11 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    console.log("👤 Fetching user from DB...");
+    // console.log("👤 Fetching user from DB...");
     const user = await User.findOne({ mobile_number });
 
     if (!user) {
-      console.log("❌ User not found for mobile:", mobile_number);
+      // console.log("❌ User not found for mobile:", mobile_number);
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -187,14 +187,14 @@ const verifyOtp = async (req, res) => {
 
     user.isVerified = true;
 
-    console.log("🔑 Generating JWT token...");
+    // console.log("🔑 Generating JWT token...");
     const token = jwt.sign(
       { userId: user._id, mobile: user.mobile_number },
       JWT_SECRET,
       { expiresIn: TOKEN_EXPIRE_TIME }
     );
 
-    console.log("🔐 JWT Token:", token);
+    // console.log("🔐 JWT Token:", token);
 
     user.token = token;
 
@@ -208,11 +208,11 @@ const verifyOtp = async (req, res) => {
       console.log("ℹ️ Push token unchanged or not provided");
     }
 
-    console.log("💾 Saving user data...");
+    // console.log("💾 Saving user data...");
     await user.save();
-    console.log("✅ User saved successfully");
+    // console.log("✅ User saved successfully");
 
-    console.log("🍪 Setting auth cookie");
+    // console.log("🍪 Setting auth cookie");
     res.cookie("auth_token", token, {
       httpOnly: true,
       secure: false,
@@ -226,7 +226,7 @@ const verifyOtp = async (req, res) => {
 
     const targetToken = pushNotificationToken || user.pushNotificationToken;
 
-    console.log("📲 Target push token exists:", Boolean(targetToken));
+    // console.log("📲 Target push token exists:", Boolean(targetToken));
 
     if (targetToken) {
       const title = "Login Successful";
@@ -237,8 +237,8 @@ const verifyOtp = async (req, res) => {
         userId: user._id.toString(),
       };
 
-      console.log("📨 Sending login push notification");
-      console.log("📦 Payload:", payloadData);
+      // console.log("📨 Sending login push notification");
+      // console.log("📦 Payload:", payloadData);
 
       await sendPushNotification(
         targetToken,
@@ -250,13 +250,13 @@ const verifyOtp = async (req, res) => {
         1
       );
 
-      console.log("🔔 Login push notification sent");
+      // console.log("🔔 Login push notification sent");
     } else {
-      console.log("⚠️ No push token — login notification skipped");
+      // console.log("⚠️ No push token — login notification skipped");
     }
 
-    console.log("🎉 OTP verification & login successful");
-    console.log("================ OTP VERIFY END =================\n");
+    // console.log("🎉 OTP verification & login successful");
+    // console.log("================ OTP VERIFY END =================\n");
 
     return res.status(200).json({
       issuccess: true,
@@ -271,7 +271,7 @@ const verifyOtp = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ OTP VERIFICATION ERROR:", err);
-    console.log("================ OTP VERIFY FAILED ===============\n");
+    // console.log("================ OTP VERIFY FAILED ===============\n");
     return res.status(500).json({ error: "Internal server error" });
   }
 };

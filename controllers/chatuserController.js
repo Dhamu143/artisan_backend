@@ -2,7 +2,7 @@ const User = require("../models/userModel");
 const Message = require("../models/Message");
 
 exports.setOnline = async (userId) => {
-  console.log("🟢 setOnline called for:", userId);
+  // console.log("🟢 setOnline called for:", userId);
 
   const user = await User.findByIdAndUpdate(
     userId,
@@ -14,16 +14,16 @@ exports.setOnline = async (userId) => {
   );
 
   if (user) {
-    console.log("✅ USER ONLINE:", userId);
+    // console.log("✅ USER ONLINE:", userId);
   } else {
-    console.log("⚠️ setOnline → user not found:", userId);
+    // console.log("⚠️ setOnline → user not found:", userId);
   }
 
   return user;
 };
 
 exports.setOffline = async (userId) => {
-  console.log("🔴 setOffline called for:", userId);
+  // console.log("🔴 setOffline called for:", userId);
 
   const user = await User.findByIdAndUpdate(
     userId,
@@ -46,7 +46,7 @@ exports.setOffline = async (userId) => {
 exports.getPresence = async (req, res) => {
   const { id } = req.params;
 
-  console.log("📡 getPresence request for:", id);
+  // console.log("📡 getPresence request for:", id);
 
   const user = await User.findById(id)
     .select("isOnline lastSeen name profileImage")
@@ -56,16 +56,14 @@ exports.getPresence = async (req, res) => {
     console.log("❌ Presence lookup failed → User not found:", id);
     return res.status(404).json({ message: "User not found" });
   }
-
   console.log("📍 Presence data:", user);
-
   res.json(user);
 };
 
 exports.markChatMessagesSeen = async ({ me, chatWith }) => {
-  console.log("📩 markChatMessagesSeen called");
-  console.log("👉 Me:", me);
-  console.log("👉 Chat With:", chatWith);
+  // console.log("📩 markChatMessagesSeen called");
+  // console.log("👉 Me:", me);
+  // console.log("👉 Chat With:", chatWith);
 
   const result = await Message.updateMany(
     {
@@ -76,7 +74,7 @@ exports.markChatMessagesSeen = async ({ me, chatWith }) => {
     { status: "seen" }
   );
 
-  console.log("✔️ Messages updated:", result.modifiedCount);
+  // console.log("✔️ Messages updated:", result.modifiedCount);
 
   return result;
 };
@@ -85,8 +83,8 @@ exports.getChatUsersList = async (req, res) => {
   try {
     const currentUserId = req.params.userId;
 
-    console.log(`\n--- 👥 FETCHING CHAT LIST START ---`);
-    console.log(`🆔 Current User ID: ${currentUserId}`);
+    // console.log(`\n--- 👥 FETCHING CHAT LIST START ---`);
+    // console.log(`🆔 Current User ID: ${currentUserId}`);
 
     if (!currentUserId) {
       return res.status(400).json({ message: "User ID is required" });
@@ -155,7 +153,6 @@ exports.getChatUsersList = async (req, res) => {
       },
 
       { $unwind: "$userDetails" },
-
       {
         $project: {
           _id: "$userDetails._id",
@@ -166,7 +163,7 @@ exports.getChatUsersList = async (req, res) => {
           isOnline: "$userDetails.isOnline",
 
           lastMessage: 1,
-          lastMessageTime: 1,
+          lastMessageTime: 1, 
           unreadCount: 1,
           lastSenderId: 1,
           lastMessageStatus: 1,
@@ -176,9 +173,8 @@ exports.getChatUsersList = async (req, res) => {
       { $sort: { lastMessageTime: -1 } },
     ]);
 
-    console.log(`✅ Found ${usersList.length} chats.`);
-    // console.log("📦 Data:", JSON.stringify(usersList, null, 2));
-    console.log("--- 👥 FETCHING CHAT LIST END ---\n");
+    // console.log(`✅ Found ${usersList.length} chats.`);
+    // console.log("--- 👥 FETCHING CHAT LIST END ---\n");
 
     res.status(200).json(usersList);
   } catch (error) {

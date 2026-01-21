@@ -8,7 +8,6 @@ const http = require("http");
 const { Server } = require("socket.io");
 const session = require("express-session");
 const passport = require("passport");
-// require("./controllers/premiumReminderJob");
 
 dotenv.config();
 
@@ -77,6 +76,8 @@ app.use("/api/faqs", require("./routes/faqRoutes"));
 app.use("/api", require("./routes/profileViewRouter"));
 app.use("/api", require("./routes/notificationRoutes"));
 app.use("/api/chat", require("./routes/chatRoutes"));
+app.use("/api/job", require("./routes/jobRoutes"));
+app.use("/api/company/jobs", require("./routes/jobPostingRoutes"));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on ${PORT}`));

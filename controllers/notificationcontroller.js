@@ -212,7 +212,6 @@ exports.sendToAllUsers = async (req, res) => {
 
     const safeData = safeStringifyData(data);
 
-    // Firebase limits sendEachForMulticast to 500 tokens per batch
     const batchSize = 500;
     const batches = [];
 
@@ -229,7 +228,6 @@ exports.sendToAllUsers = async (req, res) => {
 
     const results = await Promise.all(batches);
 
-    // Aggregate results
     let successCount = 0;
     let failureCount = 0;
 
@@ -247,5 +245,89 @@ exports.sendToAllUsers = async (req, res) => {
   } catch (err) {
     console.error("Send all error:", err);
     return res.status(500).json({ message: "Send to all failed" });
+  }
+};
+exports.sendJobNotificationToArtisans = async (req, res) => {
+  try {
+    const { categoryId, title, body, data, excludeUserId } = req.body;
+
+    // 1. Validate Input
+    if (!categoryId || !title || !body) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: categoryId, title, or body"
+      });
+    }
+
+    console.log(`📨 Finding artisans for Category: ${categoryId}`);
+
+    const query = {
+      findArtisan: false,
+      categoryId: categoryId,
+      pushNotificationToken: { $exists: true, $ne: "" },
+    };
+
+    if (excludeUserId) {
+      query._id = { $ne: excludeUserId };
+    }
+
+    const artisans = await User.find(query).select("pushNotificationToken");
+
+    const tokens = artisans.map((u) => u.pushNotificationToken).filter(Boolean);
+
+    if (!tokens.length) {
+      console.log("⚠️ No matching artisans found for notification.");
+      return res.json({
+        success: true,
+        message: "No artisans found in this category",
+        sent: 0
+      });
+    }
+
+    console.log(`🎯 Found ${tokens.length} artisans to notify.`);
+
+    const safeData = safeStringifyData(data);
+
+    const batchSize = 500;
+    const batches = [];
+
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      const batchTokens = tokens.slice(i, i + batchSize);
+
+      batches.push(
+        admin.messaging().sendEachForMulticast({
+          tokens: batchTokens,
+          notification: { title, body },
+          data: safeData,
+        })
+      );
+    }
+
+    const results = await Promise.all(batches);
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    results.forEach((r) => {
+      successCount += r.successCount;
+      failureCount += r.failureCount;
+    });
+
+    console.log(`✅ Job Notification Sent: Success=${successCount}, Failed=${failureCount}`);
+
+    return res.json({
+      success: true,
+      totalTargets: tokens.length,
+      sent: successCount,
+      failed: failureCount,
+    });
+
+  } catch (err) {
+    console.error("❌ Send Job Notification Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send notifications",
+      error: err.message
+    });
   }
 };

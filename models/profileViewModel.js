@@ -16,7 +16,6 @@ const profileViewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent duplicate views by same user
 profileViewSchema.index(
   { profileUserId: 1, viewerUserId: 1 },
   { unique: true }

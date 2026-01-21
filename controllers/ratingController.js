@@ -60,9 +60,8 @@ const addRating = async (req, res) => {
 
     if (receiver && receiver.pushNotificationToken) {
       const title = "New Rating Received ⭐";
-      const body = `${
-        sender ? sender.name : "Someone"
-      } rated you ${rating} stars`;
+      const body = `${sender ? sender.name : "Someone"
+        } rated you ${rating} stars`;
 
       const payloadData = {
         type: "NEW_RATING",
@@ -84,10 +83,10 @@ const addRating = async (req, res) => {
         title,
         body,
         payloadData,
-        null, 
-        [], 
-        1, 
-        false 
+        null,
+        [],
+        1,
+        false
       );
 
       console.log("🔔 Push notification sent for rating");
@@ -109,23 +108,49 @@ const getRatingsForUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+    const skip = (page - 1) * limit;
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid User ID" });
     }
 
+    const totalRatings = await Rating.countDocuments({
+      rated_to: userId,
+    });
+
     const ratings = await Rating.find({ rated_to: userId })
       .populate("rated_by", "name profileImage")
       .select("rated_by rating review createdAt")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
-    const count = ratings.length;
-    const sum = ratings.reduce((acc, r) => acc + r.rating, 0);
-    const averageRating = count ? sum / count : 0;
+    const ratingStats = await Rating.aggregate([
+      { $match: { rated_to: new mongoose.Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+        },
+      },
+    ]);
+
+    const averageRating =
+      ratingStats.length > 0 ? ratingStats[0].averageRating : 0;
 
     res.status(200).json({
       issuccess: true,
       rated_to: userId,
-      count,
+      pagination: {
+        page,
+        limit,
+        totalRatings,
+        totalPages: Math.ceil(totalRatings / limit),
+      },
+      count: ratings.length,
       averageRating,
       ratings,
     });
@@ -134,6 +159,7 @@ const getRatingsForUser = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 const deleteRating = async (req, res) => {
   try {

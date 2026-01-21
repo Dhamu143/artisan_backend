@@ -6,27 +6,26 @@ const {
 } = require("../controllers/notificationcontroller");
 
 exports.trackProfileView = async (req, res) => {
-  console.log("\n================ PROFILE VIEW START ================");
+  // console.log("\n================ PROFILE VIEW START ================");
 
   try {
     const { profileUserId } = req.body;
     const viewerUserId = req.user?.userId;
 
-    console.log("📥 Incoming Request Body:", req.body);
-    console.log("👤 Viewer User ID (from token):", viewerUserId);
+    // console.log("📥 Incoming Request Body:", req.body);
+    // console.log("👤 Viewer User ID (from token):", viewerUserId);
 
     if (!profileUserId || !viewerUserId) {
-      console.log("❌ Missing profileUserId or viewerUserId");
+      // console.log("❌ Missing profileUserId or viewerUserId");
       return res.status(400).json({ message: "Invalid request" });
     }
 
-    // Prevent self-view
     if (profileUserId === viewerUserId) {
-      console.log("⚠️ Self profile view detected — skipping");
+      // console.log("⚠️ Self profile view detected — skipping");
       return res.status(200).json({ viewed: false });
     }
 
-    console.log("🔍 Checking existing profile view...");
+    // console.log("🔍 Checking existing profile view...");
 
     const result = await ProfileView.updateOne(
       {
@@ -37,30 +36,28 @@ exports.trackProfileView = async (req, res) => {
       { upsert: true }
     );
 
-    console.log("🗄 MongoDB updateOne result:", {
-      acknowledged: result.acknowledged,
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount,
-      upsertedId: result.upsertedId,
-    });
+    // console.log("🗄 MongoDB updateOne result:", {
+    //   acknowledged: result.acknowledged,
+    //   matchedCount: result.matchedCount,
+    //   modifiedCount: result.modifiedCount,
+    //   upsertedId: result.upsertedId,
+    // });
 
-    // Already viewed
     if (result.matchedCount > 0) {
-      console.log("ℹ️ Profile already viewed earlier — no notification");
-      console.log("================ PROFILE VIEW END =================\n");
+      // console.log("ℹ️ Profile already viewed earlier — no notification");
+      // console.log("================ PROFILE VIEW END =================\n");
       return res.status(200).json({ viewed: false });
     }
 
-    console.log("✅ First-time profile view detected");
+    // console.log("✅ First-time profile view detected");
 
-    // Fetch users
-    console.log("📡 Fetching viewer & profile owner data...");
+    // console.log("📡 Fetching viewer & profile owner data...");
     const viewer = await User.findById(viewerUserId).select("name");
     const profileUser = await User.findById(profileUserId).select(
       "name pushNotificationToken"
     );
 
-    console.log("👀 Viewer:", viewer);
+    // console.log("👀 Viewer:", viewer);
     console.log("🧑 Profile Owner:", {
       name: profileUser?.name,
       hasPushToken: Boolean(profileUser?.pushNotificationToken),
@@ -76,8 +73,8 @@ exports.trackProfileView = async (req, res) => {
         viewerUserId: viewerUserId.toString(),
       };
 
-      console.log("📨 Sending push notification...");
-      console.log("📦 Payload:", payloadData);
+      // console.log("📨 Sending push notification...");
+      // console.log("📦 Payload:", payloadData);
 
       await sendPushNotification(
         profileUser.pushNotificationToken,
@@ -89,13 +86,13 @@ exports.trackProfileView = async (req, res) => {
         1
       );
 
-      console.log("🔔 Push notification sent successfully");
+      // console.log("🔔 Push notification sent successfully");
     } else {
-      console.log("⚠️ No pushNotificationToken — notification skipped");
+      // console.log("⚠️ No pushNotificationToken — notification skipped");
     }
 
-    console.log("🎉 Profile view recorded successfully");
-    console.log("================ PROFILE VIEW END =================\n");
+    // console.log("🎉 Profile view recorded successfully");
+    // console.log("================ PROFILE VIEW END =================\n");
 
     return res.status(200).json({
       viewed: true,
@@ -103,14 +100,14 @@ exports.trackProfileView = async (req, res) => {
       message: "Profile view counted",
     });
   } catch (error) {
-    console.error("❌ PROFILE VIEW ERROR:", error);
-    console.log("================ PROFILE VIEW FAILED ===============\n");
+    // console.error("❌ PROFILE VIEW ERROR:", error);
+    // console.log("================ PROFILE VIEW FAILED ===============\n");
     return res.status(500).json({ message: "Server error" });
   }
 };
 
 exports.getProfileViewCount = async (req, res) => {
-  console.log("\n================ FETCH VIEW COUNT =================");
+  // console.log("\n================ FETCH VIEW COUNT =================");
 
   try {
     const { profileUserId } = req.params;
@@ -126,8 +123,8 @@ exports.getProfileViewCount = async (req, res) => {
       profileUserId: new mongoose.Types.ObjectId(profileUserId),
     });
 
-    console.log("📊 Total Profile Views:", count);
-    console.log("================ FETCH VIEW COUNT END =============\n");
+    // console.log("📊 Total Profile Views:", count);
+    // console.log("================ FETCH VIEW COUNT END =============\n");
 
     return res.status(200).json({
       profileUserId,
@@ -135,8 +132,8 @@ exports.getProfileViewCount = async (req, res) => {
       issuccess: true,
     });
   } catch (error) {
-    console.error("❌ PROFILE VIEW COUNT ERROR:", error);
-    console.log("================ FETCH VIEW COUNT FAILED ===========\n");
+    // console.error("❌ PROFILE VIEW COUNT ERROR:", error);
+    // console.log("================ FETCH VIEW COUNT FAILED ===========\n");
     return res.status(500).json({ message: "Server error" });
   }
 };
